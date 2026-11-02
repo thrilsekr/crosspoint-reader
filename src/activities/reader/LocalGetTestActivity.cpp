@@ -97,8 +97,8 @@ void LocalGetTestActivity::loop() {
 
 void LocalGetTestActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  const Rect screen = UITheme::getScreenSafeArea(renderer, true, false);
-  GUI.drawHeader(renderer, UITheme::getHeaderRect(renderer, true, false), "Local GET Test");
+  const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), "Local GET Test");
 
   const int centerY = screen.y + screen.height / 2 - 24;
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY, statusMessage.c_str(), true,
