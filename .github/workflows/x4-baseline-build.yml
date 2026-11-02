@@ -1,4 +1,4 @@
-name: X4 baseline firmware build
+name: X4 local GET diagnostic build
 
 on:
   workflow_dispatch:
@@ -71,6 +71,6 @@ jobs:
       - name: Upload baseline firmware artifact
         uses: actions/upload-artifact@v6
         with:
-          name: crosspoint-2.0.0-x4-baseline
+          name: crosspoint-2.0.0-x4-local-get-test
           path: .pio/build/default/firmware.bin
           if-no-files-found: error
