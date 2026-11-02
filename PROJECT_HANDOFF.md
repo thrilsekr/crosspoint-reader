@@ -38,11 +38,14 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - Working branch: `ai-screensaver/2.0.0-baseline`
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
-- Latest recorded branch commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`
+- Latest code commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
+- Latest documentation commit: `2d636f69bd884211241c6bab4767e2897929bd42`.
 - Latest commit message: “Keep cumulative results in local X4 diagnostic”.
 - Latest recorded GitHub Actions check: run/job `125165358875`, completed successfully at 2026-11-02 08:19:28 UTC.
 - Workflow name still says “Build CrossPoint 2.0.0 X4 baseline”.
-- The latest build artifact has **not yet been retrieved and independently verified** in this handoff.
+- Latest build artifact retrieved and inspected: artifact ID `13125857099`, ZIP `x4-cumulative-diagnostic.zip`.
+- ZIP contains `firmware.bin`, 5,590,784 bytes; SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
+- This binary is built from code commit `98811e06`; it has not yet been installed on the X4.
 
 ## Current milestone
 
