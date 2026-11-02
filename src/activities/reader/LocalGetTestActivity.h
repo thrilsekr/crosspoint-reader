@@ -6,8 +6,8 @@
 
 /**
  * Temporary local-network diagnostic. Connects using CrossPoint's existing
- * Wi-Fi selector, asks for a local HTTP URL, performs one GET, and displays
- * the HTTP status and a short response preview.
+ * Wi-Fi selector, asks for a local HTTP URL, performs one GET, then allows
+ * the user to send a small form POST and inspect its response.
  */
 class LocalGetTestActivity final : public Activity {
  public:
@@ -25,7 +25,9 @@ class LocalGetTestActivity final : public Activity {
   std::string statusMessage = "Connecting to Wi-Fi...";
   std::string responsePreview;
   std::string requestUrl;
+  bool postAttempted = false;
 
   void promptForUrl();
   void performGet();
+  void performPost();
 };
