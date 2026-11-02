@@ -5,7 +5,6 @@
 
 #include <algorithm>
 
-#include "ActivityResult.h"
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
