@@ -28,6 +28,7 @@ void LocalGetTestActivity::onEnter() {
                                RenderLock lock(*this);
                                statusMessage = "Wi-Fi connection cancelled";
                                state = State::RESULT;
+                               postAttempted = true;
                              }
                              requestUpdate(true);
                              return;
@@ -45,13 +46,14 @@ void LocalGetTestActivity::promptForUrl() {
   requestUpdate(true);
 
   startActivityForResult(
-      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "Local GET URL", "http://", 96, InputType::Url),
+      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "Local GET/POST URL", "http://", 96, InputType::Url),
       [this](const ActivityResult& result) {
         if (result.isCancelled) {
           {
             RenderLock lock(*this);
             statusMessage = "Test cancelled";
             state = State::RESULT;
+            postAttempted = true;
           }
           requestUpdate(true);
           return;
@@ -62,6 +64,7 @@ void LocalGetTestActivity::promptForUrl() {
             RenderLock lock(*this);
             statusMessage = "No URL entered";
             state = State::RESULT;
+            postAttempted = true;
           }
           requestUpdate(true);
           return;
@@ -76,6 +79,7 @@ void LocalGetTestActivity::performGet() {
     state = State::REQUESTING;
     statusMessage = "Sending one HTTP GET...";
     responsePreview.clear();
+    postAttempted = false;
   }
   requestUpdate(true);
 
@@ -101,19 +105,53 @@ void LocalGetTestActivity::performGet() {
   requestUpdate(true);
 }
 
+void LocalGetTestActivity::performPost() {
+  {
+    RenderLock lock(*this);
+    state = State::REQUESTING;
+    statusMessage = "Sending one test POST...";
+    responsePreview.clear();
+    postAttempted = true;
+  }
+  requestUpdate(true);
+
+  std::string response;
+  int httpStatus = 0;
+  const bool success = HttpDownloader::postForm(requestUrl, "test=x4-post-test", response, &httpStatus);
+
+  constexpr size_t MAX_PREVIEW = 240;
+  if (response.size() > MAX_PREVIEW) response.resize(MAX_PREVIEW);
+  {
+    RenderLock lock(*this);
+    responsePreview = response;
+    statusMessage = success ? ("POST succeeded (HTTP " + std::to_string(httpStatus) + ")")
+                            : ("POST failed (HTTP " + std::to_string(httpStatus) + ")");
+    state = State::RESULT;
+  }
+  requestUpdate(true);
+}
+
 void LocalGetTestActivity::loop() {
   if (state != State::RESULT) return;
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Back) ||
-      mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     finish();
+    return;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (!postAttempted && !requestUrl.empty()) {
+      performPost();
+    } else {
+      finish();
+    }
   }
 }
 
 void LocalGetTestActivity::render(RenderLock&&) {
   renderer.clearScreen();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), "Local GET Test");
+  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), "Local GET/POST Test");
 
   const int centerY = screen.y + screen.height / 2 - 24;
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY, statusMessage.c_str(), true,
@@ -123,7 +161,8 @@ void LocalGetTestActivity::render(RenderLock&&) {
   }
 
   if (state == State::RESULT) {
-    const auto labels = mappedInput.mapLabels("Back", "Done", "", "");
+    const auto labels = postAttempted ? mappedInput.mapLabels("Back", "Done", "", "")
+                                      : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();
