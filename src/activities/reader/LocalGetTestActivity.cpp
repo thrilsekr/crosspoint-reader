@@ -17,7 +17,6 @@ void LocalGetTestActivity::onEnter() {
   Activity::onEnter();
 
   if (WiFi.status() == WL_CONNECTED) {
-    WiFi.setSleep(false);
     promptForUrl();
     return;
   }
@@ -30,7 +29,6 @@ void LocalGetTestActivity::onEnter() {
                              requestUpdate(true);
                              return;
                            }
-                           WiFi.setSleep(false);
                            promptForUrl();
                          });
 }
