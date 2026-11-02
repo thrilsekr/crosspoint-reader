@@ -26,8 +26,10 @@ class LocalGetTestActivity final : public Activity {
   std::string responsePreview;
   std::string requestUrl;
   bool postAttempted = false;
+  bool bmpAttempted = false;
 
   void promptForUrl();
   void performGet();
   void performPost();
+  void performBmpDownload();
 };
