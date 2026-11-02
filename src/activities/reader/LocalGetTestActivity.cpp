@@ -24,8 +24,11 @@ void LocalGetTestActivity::onEnter() {
   startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
                          [this](const ActivityResult& result) {
                            if (result.isCancelled) {
-                             statusMessage = "Wi-Fi connection cancelled";
-                             state = State::RESULT;
+                             {
+                               RenderLock lock(*this);
+                               statusMessage = "Wi-Fi connection cancelled";
+                               state = State::RESULT;
+                             }
                              requestUpdate(true);
                              return;
                            }
@@ -34,23 +37,32 @@ void LocalGetTestActivity::onEnter() {
 }
 
 void LocalGetTestActivity::promptForUrl() {
-  state = State::ENTERING_URL;
-  statusMessage = "Enter your PC's local HTTP URL";
+  {
+    RenderLock lock(*this);
+    state = State::ENTERING_URL;
+    statusMessage = "Enter your PC's local HTTP URL";
+  }
   requestUpdate(true);
 
   startActivityForResult(
       std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "Local GET URL", "http://", 96, InputType::Url),
       [this](const ActivityResult& result) {
         if (result.isCancelled) {
-          statusMessage = "Test cancelled";
-          state = State::RESULT;
+          {
+            RenderLock lock(*this);
+            statusMessage = "Test cancelled";
+            state = State::RESULT;
+          }
           requestUpdate(true);
           return;
         }
         requestUrl = std::get<KeyboardResult>(result.data).text;
         if (requestUrl.empty() || requestUrl == "http://") {
-          statusMessage = "No URL entered";
-          state = State::RESULT;
+          {
+            RenderLock lock(*this);
+            statusMessage = "No URL entered";
+            state = State::RESULT;
+          }
           requestUpdate(true);
           return;
         }
@@ -59,9 +71,12 @@ void LocalGetTestActivity::promptForUrl() {
 }
 
 void LocalGetTestActivity::performGet() {
-  state = State::REQUESTING;
-  statusMessage = "Sending one HTTP GET...";
-  responsePreview.clear();
+  {
+    RenderLock lock(*this);
+    state = State::REQUESTING;
+    statusMessage = "Sending one HTTP GET...";
+    responsePreview.clear();
+  }
   requestUpdate(true);
 
   WifiPowerSaveGuard powerSaveGuard;
@@ -77,9 +92,12 @@ void LocalGetTestActivity::performGet() {
       });
 
   const int httpStatus = HttpDownloader::lastStatus();
-  statusMessage = success ? ("GET succeeded (HTTP " + std::to_string(httpStatus) + ")")
-                          : ("GET failed (HTTP " + std::to_string(httpStatus) + ")");
-  state = State::RESULT;
+  {
+    RenderLock lock(*this);
+    statusMessage = success ? ("GET succeeded (HTTP " + std::to_string(httpStatus) + ")")
+                            : ("GET failed (HTTP " + std::to_string(httpStatus) + ")");
+    state = State::RESULT;
+  }
   requestUpdate(true);
 }
 
