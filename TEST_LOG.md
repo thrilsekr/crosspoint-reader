@@ -15,7 +15,7 @@ Newest entries first. Record actual results only; label hypotheses explicitly.
 - Artifact retrieval and binary hash verification: pending.
 - Device installation/test of this commit: not confirmed.
 
-## 2026-11-02 — Updated local receiver script provided
+## 2026-11-02 — Cumulative diagnostic artifact retrieved and verified\n\n- Artifact ID: `13125857099`.\n- ZIP: `x4-cumulative-diagnostic.zip`.\n- Contents: `firmware.bin`.\n- Firmware binary size: 5,590,784 bytes.\n- Firmware binary SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.\n- Artifact is associated with code commit `98811e06eb687e83fba58eef2de86a8a2fb409f0`.\n- Build succeeded; artifact inspected. Device installation remains pending.\n\n## 2026-11-02 — Updated local receiver script provided
 
 - User said they would paste the revised PowerShell script into the existing `.ps1` file.
 - Script creates a valid 800×400, 24-bit BMP test image.
