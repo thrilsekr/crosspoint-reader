@@ -5,9 +5,8 @@
 #include "activities/Activity.h"
 
 /**
- * Temporary local-network diagnostic. Connects using CrossPoint's existing
- * Wi-Fi selector, asks for a local HTTP URL, performs one GET, then allows
- * the user to send a small form POST and inspect its response.
+ * Temporary local-network diagnostic. Performs GET, POST, and BMP download
+ * tests sequentially and retains every result on the final screen.
  */
 class LocalGetTestActivity final : public Activity {
  public:
@@ -20,13 +19,21 @@ class LocalGetTestActivity final : public Activity {
   bool preventAutoSleep() override { return true; }
 
  private:
-  enum class State { CONNECTING, ENTERING_URL, REQUESTING, RESULT };
+  enum class State { CONNECTING, REQUESTING, RESULT };
   State state = State::CONNECTING;
   std::string statusMessage = "Connecting to Wi-Fi...";
-  std::string responsePreview;
   std::string requestUrl;
+
+  bool wifiCancelled = false;
+  bool getAttempted = false;
+  bool getSucceeded = false;
+  int getHttpStatus = 0;
   bool postAttempted = false;
+  bool postSucceeded = false;
+  int postHttpStatus = 0;
   bool bmpAttempted = false;
+  bool bmpSucceeded = false;
+  int bmpHttpStatus = 0;
 
   void promptForUrl();
   void performGet();

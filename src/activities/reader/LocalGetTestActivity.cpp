@@ -9,7 +9,6 @@
 #include "activities/network/WifiSelectionActivity.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
-#include "network/WifiPowerSaveGuard.h"
 #include "components/UITheme.h"
 
 void LocalGetTestActivity::onEnter() {
@@ -26,9 +25,8 @@ void LocalGetTestActivity::onEnter() {
                              {
                                RenderLock lock(*this);
                                statusMessage = "Wi-Fi connection cancelled";
+                               wifiCancelled = true;
                                state = State::RESULT;
-                               postAttempted = true;
-                               bmpAttempted = true;
                              }
                              requestUpdate(true);
                              return;
@@ -54,30 +52,20 @@ void LocalGetTestActivity::performGet() {
   {
     RenderLock lock(*this);
     state = State::REQUESTING;
-    statusMessage = "Sending one HTTP GET...";
-    responsePreview.clear();
-    postAttempted = false;
-    bmpAttempted = false;
+    statusMessage = "Sending HTTP GET...";
+    getAttempted = true;
   }
   requestUpdate(true);
 
-  WifiPowerSaveGuard powerSaveGuard;
   const bool success = HttpDownloader::fetchUrl(
-      requestUrl,
-      [this](const uint8_t* data, const size_t length) {
-        constexpr size_t MAX_PREVIEW = 240;
-        if (responsePreview.size() < MAX_PREVIEW) {
-          const size_t take = std::min(length, MAX_PREVIEW - responsePreview.size());
-          responsePreview.append(reinterpret_cast<const char*>(data), take);
-        }
-        return true;
-      });
+      requestUrl, [](const uint8_t*, const size_t) { return true; });
 
   const int httpStatus = HttpDownloader::lastStatus();
   {
     RenderLock lock(*this);
-    statusMessage = success ? ("GET succeeded (HTTP " + std::to_string(httpStatus) + ")")
-                            : ("GET failed (HTTP " + std::to_string(httpStatus) + ")");
+    getSucceeded = success;
+    getHttpStatus = httpStatus;
+    statusMessage = success ? "GET test complete" : "GET test failed";
     state = State::RESULT;
   }
   requestUpdate(true);
@@ -87,8 +75,7 @@ void LocalGetTestActivity::performPost() {
   {
     RenderLock lock(*this);
     state = State::REQUESTING;
-    statusMessage = "Sending one test POST...";
-    responsePreview.clear();
+    statusMessage = "Sending test POST...";
     postAttempted = true;
   }
   requestUpdate(true);
@@ -96,14 +83,11 @@ void LocalGetTestActivity::performPost() {
   std::string response;
   int httpStatus = 0;
   const bool success = HttpDownloader::postForm(requestUrl, "test=x4-post-test", response, &httpStatus);
-
-  constexpr size_t MAX_PREVIEW = 240;
-  if (response.size() > MAX_PREVIEW) response.resize(MAX_PREVIEW);
   {
     RenderLock lock(*this);
-    responsePreview = response;
-    statusMessage = success ? ("POST succeeded (HTTP " + std::to_string(httpStatus) + ")")
-                            : ("POST failed (HTTP " + std::to_string(httpStatus) + ")");
+    postSucceeded = success;
+    postHttpStatus = httpStatus;
+    statusMessage = success ? "POST test complete" : "POST test failed";
     state = State::RESULT;
   }
   requestUpdate(true);
@@ -114,7 +98,6 @@ void LocalGetTestActivity::performBmpDownload() {
     RenderLock lock(*this);
     state = State::REQUESTING;
     statusMessage = "Downloading test BMP...";
-    responsePreview.clear();
     bmpAttempted = true;
   }
   requestUpdate(true);
@@ -127,10 +110,9 @@ void LocalGetTestActivity::performBmpDownload() {
   const int httpStatus = HttpDownloader::lastStatus();
   {
     RenderLock lock(*this);
-    statusMessage = result == HttpDownloader::OK
-                        ? ("BMP download succeeded (HTTP " + std::to_string(httpStatus) + ")")
-                        : ("BMP download failed (HTTP " + std::to_string(httpStatus) + ")");
-    responsePreview = result == HttpDownloader::OK ? DEST_PATH : "Temporary file was not installed";
+    bmpSucceeded = result == HttpDownloader::OK;
+    bmpHttpStatus = httpStatus;
+    statusMessage = bmpSucceeded ? "BMP download complete" : "BMP download failed";
     state = State::RESULT;
   }
   requestUpdate(true);
@@ -145,12 +127,12 @@ void LocalGetTestActivity::loop() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (!postAttempted && !requestUrl.empty()) {
-      performPost();
-    } else if (!bmpAttempted) {
-      performBmpDownload();
-    } else {
+    if (wifiCancelled || bmpAttempted) {
       finish();
+    } else if (!postAttempted) {
+      performPost();
+    } else {
+      performBmpDownload();
     }
   }
 }
@@ -158,19 +140,34 @@ void LocalGetTestActivity::loop() {
 void LocalGetTestActivity::render(RenderLock&&) {
   renderer.clearScreen();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), "Local GET/POST Test");
+  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), "Local Network Diagnostic");
 
-  const int centerY = screen.y + screen.height / 2 - 24;
-  UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY, statusMessage.c_str(), true,
-                            EpdFontFamily::BOLD);
-  if (state == State::RESULT && !responsePreview.empty()) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 36, responsePreview.c_str());
+  const int centerY = screen.y + screen.height / 2 - 50;
+  const auto stageLine = [this](const char* label, const bool attempted, const bool succeeded, const int status) {
+    if (wifiCancelled) return std::string(label) + ": SKIPPED";
+    if (!attempted) return std::string(label) + ": NOT RUN";
+    return std::string(label) + (succeeded ? ": PASS HTTP " : ": FAIL HTTP ") + std::to_string(status);
+  };
+
+  UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY,
+                            stageLine("GET /event", getAttempted, getSucceeded, getHttpStatus).c_str());
+  UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 30,
+                            stageLine("POST /event", postAttempted, postSucceeded, postHttpStatus).c_str());
+  UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 60,
+                            stageLine("GET /test.bmp", bmpAttempted, bmpSucceeded, bmpHttpStatus).c_str());
+
+  const std::string fileLine = !bmpAttempted ? "BMP file: NOT TESTED"
+                              : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
+  UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 90, fileLine.c_str());
+  if (state == State::REQUESTING) {
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 120, statusMessage.c_str());
   }
 
   if (state == State::RESULT) {
-    const auto labels = bmpAttempted ? mappedInput.mapLabels("Back", "Done", "", "")
-                       : (postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
-                                        : mappedInput.mapLabels("Back", "POST test", "", ""));
+    const auto labels = (wifiCancelled || bmpAttempted)
+                            ? mappedInput.mapLabels("Back", "Done", "", "")
+                        : postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
+                                        : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();
