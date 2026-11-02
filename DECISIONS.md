@@ -72,3 +72,11 @@ This file records decisions that should not be reopened without new evidence or 
 - Ask only essential questions.
 - Treat confirmed behavior, hypotheses, and untested ideas separately.
 - Validate each milestone before moving on.
+
+
+## Record format / maintenance policy
+- These records are primarily an assistant-operational memory store, not user documentation.
+- Optimize for retrieval precision, compactness, explicit state, and low ambiguity rather than polished prose.
+- Prefer concise structured fields, stable labels, exact identifiers, dates, and explicit status tags: CONFIRMED / HYPOTHESIS / UNTESTED / BLOCKED / DONE.
+- Avoid repeating the same facts across files; handoff stores current state, decisions stores durable constraints, test log stores chronological evidence.
+- User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
