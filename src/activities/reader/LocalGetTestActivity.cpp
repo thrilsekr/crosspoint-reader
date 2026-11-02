@@ -28,6 +28,7 @@ void LocalGetTestActivity::onEnter() {
                                statusMessage = "Wi-Fi connection cancelled";
                                state = State::RESULT;
                                postAttempted = true;
+                               bmpAttempted = true;
                              }
                              requestUpdate(true);
                              return;
@@ -146,6 +147,8 @@ void LocalGetTestActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (!postAttempted && !requestUrl.empty()) {
       performPost();
+    } else if (!bmpAttempted) {
+      performBmpDownload();
     } else {
       finish();
     }
