@@ -3091,7 +3091,8 @@ void EpubReaderActivity::buildMoreActions() {
                                          CLIPPINGS.hasClippings());
   moreItems.erase(std::remove_if(moreItems.begin(), moreItems.end(),
                                  [](const auto& item) {
-                                   return item.action == MA::SELECT_CHAPTER || item.action == MA::TEXT_SETTINGS;
+                                   return item.action == MA::SELECT_CHAPTER || item.action == MA::TEXT_SETTINGS ||
+                                            item.action == MA::LOCAL_GET_TEST;
                                  }),
                   moreItems.end());
 }
