@@ -56,6 +56,7 @@ void LocalGetTestActivity::performGet() {
     statusMessage = "Sending one HTTP GET...";
     responsePreview.clear();
     postAttempted = false;
+    bmpAttempted = false;
   }
   requestUpdate(true);
 
@@ -107,6 +108,33 @@ void LocalGetTestActivity::performPost() {
   requestUpdate(true);
 }
 
+void LocalGetTestActivity::performBmpDownload() {
+  {
+    RenderLock lock(*this);
+    state = State::REQUESTING;
+    statusMessage = "Downloading test BMP...";
+    responsePreview.clear();
+    bmpAttempted = true;
+  }
+  requestUpdate(true);
+
+  // Fixed local diagnostic endpoint. The file is deliberately kept separate
+  // from /sleep.bmp so this test cannot change the active screensaver.
+  constexpr char BMP_URL[] = "http://192.168.1.177:8765/test.bmp";
+  constexpr char DEST_PATH[] = "/x4-download-test.bmp";
+  const auto result = HttpDownloader::downloadToFile(BMP_URL, DEST_PATH);
+  const int httpStatus = HttpDownloader::lastStatus();
+  {
+    RenderLock lock(*this);
+    statusMessage = result == HttpDownloader::OK
+                        ? ("BMP download succeeded (HTTP " + std::to_string(httpStatus) + ")")
+                        : ("BMP download failed (HTTP " + std::to_string(httpStatus) + ")");
+    responsePreview = result == HttpDownloader::OK ? DEST_PATH : "Temporary file was not installed";
+    state = State::RESULT;
+  }
+  requestUpdate(true);
+}
+
 void LocalGetTestActivity::loop() {
   if (state != State::RESULT) return;
 
@@ -137,8 +165,9 @@ void LocalGetTestActivity::render(RenderLock&&) {
   }
 
   if (state == State::RESULT) {
-    const auto labels = postAttempted ? mappedInput.mapLabels("Back", "Done", "", "")
-                                      : mappedInput.mapLabels("Back", "POST test", "", "");
+    const auto labels = bmpAttempted ? mappedInput.mapLabels("Back", "Done", "", "")
+                       : (postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
+                                        : mappedInput.mapLabels("Back", "POST test", "", ""));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();
