@@ -55,7 +55,7 @@ void EpubReaderMenuActivity::onExit() {
 void EpubReaderMenuActivity::buildMenuRowItems() {
   for (size_t i = 0; i < menuItems.size() && i < MAX_MENU_ITEMS; i++) {
     fui::ListItem item;
-    item.label = I18N.get(menuItems[i].labelId);
+    item.label = menuItems[i].action == MenuAction::LOCAL_GET_TEST ? "Local GET test" : I18N.get(menuItems[i].labelId);
     item.actionValue = static_cast<int16_t>(i);
     menuRowItems[i] = item;
   }
@@ -104,6 +104,7 @@ void EpubReaderMenuActivity::buildMenuItems(std::vector<MenuItem>& items, const 
   }
   items.push_back({MenuAction::DELETE_CACHE, StrId::STR_DELETE_CACHE});
   items.push_back({MenuAction::TEXT_SETTINGS, StrId::STR_TEXT_SETTINGS});
+  items.push_back({MenuAction::LOCAL_GET_TEST, StrId::STR_TEXT_SETTINGS});
 }
 
 void EpubReaderMenuActivity::toggleBluetooth() {
