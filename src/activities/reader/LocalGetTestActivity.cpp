@@ -7,7 +7,6 @@
 
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "activities/util/KeyboardEntryActivity.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
 #include "network/WifiPowerSaveGuard.h"
@@ -38,39 +37,16 @@ void LocalGetTestActivity::onEnter() {
 }
 
 void LocalGetTestActivity::promptForUrl() {
+  // Temporary diagnostic endpoint on the user's local PC.
+  // Keep this local-only; no address is sent to any external service.
+  requestUrl = "http://192.168.1.177:8765/event";
   {
     RenderLock lock(*this);
-    state = State::ENTERING_URL;
-    statusMessage = "Enter your PC's local HTTP URL";
+    state = State::REQUESTING;
+    statusMessage = "Using saved local PC endpoint...";
   }
   requestUpdate(true);
-
-  startActivityForResult(
-      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "Local GET/POST URL", "http://", 96, InputType::Url),
-      [this](const ActivityResult& result) {
-        if (result.isCancelled) {
-          {
-            RenderLock lock(*this);
-            statusMessage = "Test cancelled";
-            state = State::RESULT;
-            postAttempted = true;
-          }
-          requestUpdate(true);
-          return;
-        }
-        requestUrl = std::get<KeyboardResult>(result.data).text;
-        if (requestUrl.empty() || requestUrl == "http://") {
-          {
-            RenderLock lock(*this);
-            statusMessage = "No URL entered";
-            state = State::RESULT;
-            postAttempted = true;
-          }
-          requestUpdate(true);
-          return;
-        }
-        performGet();
-      });
+  performGet();
 }
 
 void LocalGetTestActivity::performGet() {
