@@ -64,6 +64,16 @@ Repository-facing prose: use plain English for non-native readers and standard
 technical terms when clearest. Code comments must be short and useful after merge; follow the
 [comment rules](.agents/rules/coding-standards.md#comment-style).
 
+## Working style and X4 experimentation
+
+Prefer the simplest human workflow over elaborate tooling.
+
+- **Prefer copy/paste for small changes.** When a command, short script, focused patch, configuration block, or replacement function can be applied clearly in chat, provide it directly with the target file/location and concise application steps.
+- **Generate files only when useful.** Use generated files or repository/file tools for complete scripts, large replacements, multi-file changes, binary assets, archives, or work where manual copying would be cumbersome or error-prone. Avoid elaborate tooling for changes that are easily applied with a short paste.
+- **Keep changes appropriately scoped.** Explain what to replace or where to insert code. Prefer a focused patch over asking the human to replace a large file when the smaller change is reliable.
+- **X4 rollback baseline exists.** The human has already made a complete backup of the X4 in its exact pre-tinkering state and can restore it if an experiment goes wrong. Do not impose excessive device-preservation caution on ordinary experiments, test deployments, or iterative fixes; favor practical, incremental testing and learning.
+- **Keep the backup distinction clear.** The device backup makes hardware/software experimentation recoverable; it does not authorize destructive Git operations, changes to the upstream CrossPoint repository, unapproved commits/pushes, or avoidable loss of source work. Continue to follow the repository's Git approval rules and keep work on the user's personal fork/local working copy as directed.
+
 ## Mandatory firmware handoff
 
 For every logical change that can affect shipped firmware or its build—including C/C++, build configuration, partitions, code-generation sources, translations, and release scripts—the main agent must complete [firmware-handoff](.agents/skills/firmware-handoff/SKILL.md) before declaring the work ready or making an approved local commit. That skill owns the required checks, four independent reviews, bounded follow-up, and explicit human acceptance of behavior, architecture, and maintenance ownership.
