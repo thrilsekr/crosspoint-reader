@@ -1,0 +1,74 @@
+# Xteink AI Screensaver — Decision Record
+
+Last updated: 2026-11-02
+
+This file records decisions that should not be reopened without new evidence or an explicit user request.
+
+## Project boundaries
+
+- Target is the original Xteink X4 running CrossPoint 2.0.0.
+- Keep the exact 2.0.0 firmware and SDK baseline. No beta, RC, dev firmware, or reinstall without an explicit planned test.
+- Work only in the user's personal fork: `thrilsekr/crosspoint-reader`.
+- Use SD-card sideloading for firmware.
+- No USB serial access.
+- Prefer local-only networking and minimal data exposure. Never ask for private LAN addresses or credentials.
+- The user delegates project management and engineering execution. Continue without a “proceed” prompt unless user input, device action, or approval is required.
+- Existing screensaver files do not need protection during diagnostics. This supersedes the earlier instruction to preserve them. Avoid unrelated destructive changes.
+
+## Reader integration
+
+- Trigger via configurable short power-button action, proposed setting value `AI_SCREENSAVER=7`.
+- Do not renumber existing `SHORT_PWRBTN` values.
+- Long press remains existing power-down behavior.
+- Capture exact visible page text from the reader's current `Section` using `getTextFromSectionFile()` at trigger time.
+- Do not use QR in the final flow; it was only a validation method.
+- Do not depend on plugin/event payloads for reader text.
+- Do not introduce `reader.session` unless user explicitly asks to revisit it.
+- Automatic inactivity sleep is out of scope.
+
+## Architecture and rendering
+
+- AI activity owns display rendering.
+- Network code must not draw to the display.
+- Capture page text once and retain an owned copy.
+- Do not create ad-hoc FreeRTOS tasks inside activities. Exact CrossPoint documentation advises against `xTaskCreate` there; no lifecycle-aware Worker abstraction was found in the pinned SDK. Resolve lifecycle-safe networking before implementation.
+- Use existing activity stack and render-lock mechanisms.
+- Network polling and transition to deep sleep must be validated.
+
+## Networking
+
+- Caller establishes Wi-Fi; `HttpDownloader` does not connect.
+- Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
+- Do not run concurrent HTTP requests.
+- Respect `downloadToFile()` staging behavior (`.part`, replace on success, remove partial on failure).
+- Keep service local-only where practical; no public exposure of the local receiver.
+
+## Image and storage
+
+- Generate portrait-oriented imagery.
+- 800×400 is a target, not a hard validation rule.
+- BMP validation is permissive: validate readable header/format and complete pixel data, not dimensions/orientation/aspect ratio.
+- Renderer supports zoom-to-fit.
+- Archive outside `.sleep`.
+- Intended generated image state tracks book identity/path/hash and image ID/checksum/timestamp.
+- Do not archive/replace the current image until the incoming image has downloaded and validated.
+- For same book, retain the existing generated image while waiting; for another book, show that book's cover until a new image arrives.
+- Timeout target is five minutes; fallback should remain cover art, not an unrelated previous image.
+
+## Diagnostic workflow
+
+- Local Windows receiver uses port 8765.
+- Diagnostic routes are strict: GET `/test.bmp`, GET/POST `/event`; unknown routes return 404.
+- Receiver should log connection acceptance, request line, headers, body, response, and disconnect/timeout phase.
+- Q should stop the receiver.
+- Diagnostic image download must use `/x4-download-test.bmp`, not `/sleep.bmp`, unless a later test explicitly changes scope.
+- Cumulative device diagnostic screen must retain outcomes from GET, POST, and BMP stages.
+- Do not claim a transport failure means no TCP connection; HTTP 0 means no HTTP response was obtained.
+
+## Collaboration
+
+- Keep explanations short and actionable.
+- Avoid repeating established context or asking the user to repeat completed tests.
+- Ask only essential questions.
+- Treat confirmed behavior, hypotheses, and untested ideas separately.
+- Validate each milestone before moving on.
