@@ -39,6 +39,7 @@
 #include "EpubReaderUtils.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
+#include "LocalGetTestActivity.h"
 #include "MappedInputManager.h"
 #include "ProgressMapper.h"
 #include "QrDisplayActivity.h"
@@ -1270,6 +1271,11 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
     }
     case EpubReaderMenuActivity::MenuAction::SYNC: {
       launchKOReaderSync();
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::LOCAL_GET_TEST: {
+      startActivityForResult(std::make_unique<LocalGetTestActivity>(renderer, mappedInput),
+                             [this](const ActivityResult&) { requestUpdate(); });
       break;
     }
     case EpubReaderMenuActivity::MenuAction::BOOKMARKS: {
