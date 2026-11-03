@@ -2,6 +2,20 @@
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
 
+## 2026-11-02 — Reader/screensaver integration source investigation — DESIGN PATH VERIFIED (not device-tested)
+
+Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline` and SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+
+- **Current-page text CONFIRMED:** `Section::getTextFromSectionFile()` calls `loadPage(currentPage)` and extracts that page's text blocks; it does not return the whole chapter. It reconstructs words with spaces, so original layout/spacing and non-text elements are not preserved.
+- Earlier user QR verification decoded text matching the visible page apart from formatting. QR remains out of the final workflow.
+- **Replacement lifecycle CONFIRMED in source:** `ActivityManager::replaceActivity()` defers the replacement until the current activity loop returns, calls outgoing `onExit()`, destroys it, clears the activity stack, then enters the new activity.
+- **Reader cleanup CONFIRMED in source:** `ReaderActivity::onExit()` flushes reader-session state; `EpubReaderActivity` owns its EPUB and Section through smart pointers; `Section` destructor runs its cleanup/suspend path. Exact low-level EPUB file-handle close behavior not independently verified.
+- **X4 trigger path CONFIRMED in source:** X4 is a no-touch profile. Existing reader short-power handling uses `mappedInput.wasReleased(Button::Power)` and guards against simultaneous Down release. The touch-board-only bookmark/sync/reader-menu mapping is not the right path for original X4.
+- Persisted `SHORT_PWRBTN` values 0–9 are occupied. Append `AI_SCREENSAVER=10`; add it to `shortPowerButtonOptions()`; do not renumber existing values. Keep long-press power-down unchanged.
+- **Recommended capture handoff:** while reader is alive, copy page text and selected metadata into an independently owned `ReadingContext`; request `replaceActivity()`; begin screensaver file/network work only after reader teardown. Do not push the AI activity or retain pointers/references to reader objects.
+- **Not device-tested:** no code changes or firmware build were made for this investigation.
+- **Remaining investigation:** exact context field selection/API; lifecycle-safe network worker, cancellation and Wi-Fi ownership; existing image display and deep-sleep handoff.
+
 ## 2026-11-02 — Cumulative diagnostic: network transfer, save, and open — PASS
 
 - Firmware: cumulative diagnostic from commit `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
