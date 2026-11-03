@@ -149,3 +149,13 @@ For each future test, record:
 - Interpretation:
 - Confirmed / hypothesis / untested:
 - Next action:
+
+
+## 2026-11-02 — Worker cancellation source investigation (no code/build)
+
+- CrossPoint branch: `ai-screensaver/2.0.0-baseline`; firmware baseline CrossPoint 2.0.0. SDK submodule pinned at `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+- Confirmed no reusable general-purpose Worker in the inspected firmware/SDK tree. ActivityManager owns the shared render task only. Repository worker instructions remain contradictory and require an explicit wrapper/lifecycle contract.
+- Corrected earlier cancellation interpretation: both HTTPS and plain HTTP perform DNS/TCP setup without polling the caller's cancellation callback throughout those blocking stages. HTTPS checks abort before DNS and after TCP, and polls during TLS handshake; plain HTTP has no abort callback on its DNS/TCP path. `Network.hostByName()` has no caller-supplied timeout/abort parameter. TCP connection timeout currently inherits the configured 60-second HTTP timeout.
+- `std::atomic` is available at configured `gnu++2a` language level; no target compile test performed.
+- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Together with the non-thread-safe `HttpDownloader` contract, this reinforces single-flight HTTP and explicit Wi-Fi ownership.
+- Result: Worker architecture remains a viable direction, but bounded sleep cancellation is not yet proven. Need choose between SDK transport changes for bounded/cancellable DNS/TCP or a constrained endpoint/connection policy. No source code changed, no build triggered, no device test performed.
