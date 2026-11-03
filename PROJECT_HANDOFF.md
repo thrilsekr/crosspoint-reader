@@ -79,12 +79,13 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Next milestone
 
-**Reader/screensaver integration source investigation — capture, lifecycle, and X4 trigger path verified; worker design remains open.**
+**Worker/lifecycle investigation — source reviewed; architecture direction identified, task policy conflict unresolved.**
 
-1. Design the owned `ReadingContext` value object and confirm the exact metadata fields to copy. Do not retain reader/EPUB/Section pointers.
-2. Verify lifecycle-safe network execution, cancellation, and Wi-Fi ownership. Do not create an ad-hoc FreeRTOS task in an activity.
-3. Verify the existing image-display path and handoff to the main loop's established deep-sleep orchestrator.
-4. Once those remaining pieces are verified, propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+1. Resolve the conflicting repository guidance for activity-owned workers before creating any task: `docs/activity-manager.md` prohibits `xTaskCreate` in activities and calls for a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the pinned firmware/SDK source.
+2. Define a minimal Worker contract: ownership, startup failure, synchronized cancellation, completion/join, task cleanup, stack sizing, and single-flight HTTP ownership. Do not implement until the policy conflict and contract are resolved.
+3. Decide how to make HTTP cancellation thread-safe. Existing `HttpDownloader` cancellation accepts `const bool*`; it is not an atomic/thread-safe contract. `fetchUrl()` and `postForm()` have no cancellation parameter.
+4. Integrate stop-and-wait with `prepareForSleep()` and `onExit()`. `prepareForSleep()` is invoked under `RenderLock` before sleep plugin delivery; worker shutdown must not require that lock, and its wait must be bounded.
+5. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
@@ -137,6 +138,23 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - Main.cpp Wi-Fi connect path uses saved credentials, checks plugin connection needs/battery, connects, syncs clock, and drains events.
 - `WifiCredentialStore`: `WIFI_STORE.loadFromFile()`, `WIFI_STORE.findCredential(WIFI_STORE.getLastConnectedSsid())`.
 - `TaskWatchdog.h` has `resetTaskWatchdogIfSubscribed()`.
+
+### Worker lifecycle and cancellation investigation (2026-11-02)
+
+**CONFIRMED from pinned CrossPoint 2.0.0 source:**
+- The ESP32-C3 is single-core. The main Arduino loop and ActivityManager render task are existing execution contexts; the render task is manager-owned.
+- No reusable general-purpose Worker implementation was found in the inspected firmware and pinned SDK source trees.
+- Repository guidance conflicts: `docs/activity-manager.md` explicitly says not to call `xTaskCreate` inside activities and to propose a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers require synchronization and `vTaskDelete()` in `onExit()`. This policy conflict must be resolved before implementation; neither instruction alone defines a safe cancellation/join contract.
+- `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock`. The main deep-sleep path calls it before sleep plugin event delivery; `ActivityManager::goToSleep()` later replaces the activity, causing `onExit()` and destruction.
+- A worker stop/wait from `prepareForSleep()` must not need `RenderLock`; otherwise it can deadlock. It must complete before sleep-event network delivery to preserve single-flight HTTP ownership.
+- `HttpDownloader` documents itself as not thread-safe: one fetch at a time. `downloadToFile()` and `postToFile()` accept `const bool* cancelFlag`; the current plain-bool contract is not safe for unsynchronized cross-task access. `fetchUrl()` and `postForm()` do not expose cancellation.
+- `runGetSecure()` passes a cancellation callback to the pinned SDK `fetchResumable()` path. This is useful existing machinery, but it does not by itself establish thread-safe cancellation or bounded cancellation latency for every network stage.
+- HTTP timeout is configured to 60,000 ms per socket operation; do not treat this as a 60-second total request deadline or as proof that sleep cancellation is prompt.
+- `main.cpp` performs `activityManager.prepareForSleep()`, sleep-event delivery, `goToSleep()`, Wi-Fi shutdown, and deep-sleep preparation in that order. AI activity must stop and finish its network work before the sleep-event drain starts.
+
+**DESIGN DIRECTION (not yet an approved implementation contract):** a small lifecycle-aware Worker owned by the AI activity, with independently owned request input/result, synchronized cooperative cancellation, one network operation at a time, and a completion handshake before resources are released. No worker rendering and no forced task deletion while HTTP/C++ resources are active.
+
+**UNRESOLVED:** exact task creation/priority/stack/cleanup policy; atomic cancellation integration through all HTTP APIs and SDK plain-HTTP connection stages; bounded completion strategy; Wi-Fi ownership and coordination. No code, build, or device test performed for this investigation.
 
 ### Event behavior
 
