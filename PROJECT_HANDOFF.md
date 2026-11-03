@@ -79,13 +79,13 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Next milestone
 
-**Reader/screensaver integration design and implementation planning.**
+**Reader/screensaver integration design — lifecycle path verified; context handoff still under investigation.**
 
-1. Re-check the exact CrossPoint 2.0.0 activity/render lifecycle and available file/image display path.
-2. Resolve lifecycle-safe network work and Wi-Fi ownership before implementation; do not create an ad-hoc FreeRTOS task in an activity.
-3. Define the smallest integration slice: trigger, capture page text, show fallback, retrieve portrait BMP, validate, display, and fail safely.
-4. Verify the design against the pinned SDK and resource limits before changing firmware.
-5. Build only when an implementation change is ready for a meaningful device test.
+1. Verify how to copy the exact visible page text and required book metadata into an independently owned context before the reader is destroyed.
+2. Verify the short-power-button input path can request the replacement without violating input-frame or activity-transition rules.
+3. Finish resolving lifecycle-safe network execution, cancellation, and Wi-Fi ownership. Do not create an ad-hoc FreeRTOS task in an activity.
+4. Verify the existing image-display path and the handoff to the main loop's established deep-sleep orchestrator.
+5. Only after the complete flow is verified, propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
@@ -104,15 +104,21 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Reader lifecycle and rendering
 
-- Capture page text once at trigger time under the correct render lock and retain an owned copy.
-- `ActivityManager` stack supports pushing an activity while reader remains underneath.
+**Confirmed from pinned CrossPoint 2.0.0 source inspection (2026-11-02):**
+
+- `ActivityManager::replaceActivity()` is the appropriate transition mechanism: it defers replacement when called from the active activity, then calls the outgoing activity's `onExit()` and destroys it before entering the replacement.
+- Replacement clears the activity stack. Do not push the AI activity on top of the reader; the reader should not remain underneath.
+- `ReaderActivity::onExit()` flushes the reader session, emits the reader-exit event when subscribed, resets reader state, and releases reader-owned caches/state.
+- `EpubReaderActivity` owns its EPUB via `std::shared_ptr<Epub>` and its current `Section` via `std::unique_ptr<Section>`. Destroying the reader releases those owned objects. The exact lower-level EPUB file-handle close behavior has not yet been independently verified.
+- The activity manager uses the render lock while exiting/destroying the current activity, protecting the transition against concurrent rendering.
+- Therefore the agreed lifecycle is: capture visible-page text and required metadata while the reader is alive; copy them into an independently owned context; request activity replacement; allow normal reader `onExit()` and destruction; then run the AI screensaver activity using only the copied context.
+- The reader's existing bookmark, clipping, and progress persistence demonstrate ordinary SD writes during reader operation. This does not by itself prove arbitrary concurrent filesystem access is safe; the agreed replacement flow avoids needing reader/worker overlap.
 - Existing `SleepActivity` handles `/sleep.bmp`, book-cover, and blank-screen behavior. Existing cover renderer supports EPUB/TXT/Markdown/XTC.
-- Shared render task calls active activity `render()`; main task handles activity logic.
-- `RenderLock` protects shared state/framebuffer.
+- Shared render task calls active activity `render()`; main task handles activity logic. `RenderLock` protects shared state/framebuffer.
 - `requestUpdate()` and `requestUpdateAndWait()` are available.
 - Network worker must never draw.
-- `docs/activity-manager.md` explicitly advises against `xTaskCreate` inside activities and recommends a lifecycle-aware Worker abstraction. No general-purpose Worker abstraction was found in the exact SDK tree. Do not create an ad-hoc task without a lifecycle-safe design.
-- Network polling responsiveness and transition from AI activity to deep sleep remain unverified.
+- `docs/activity-manager.md` advises against `xTaskCreate` inside activities and recommends a lifecycle-aware Worker abstraction. No general-purpose Worker abstraction was found in the exact SDK tree. Do not create an ad-hoc task without a lifecycle-safe design.
+- The exact context-copy API, short-power-button transition path, lower-level EPUB handle closure, and lifecycle-safe network worker remain to be verified.
 
 ### HTTP and Wi-Fi
 
