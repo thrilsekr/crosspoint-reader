@@ -49,6 +49,17 @@ This file records decisions that should not be reopened without new evidence or 
 - Use existing activity stack and render-lock mechanisms.
 - Network polling and transition to deep sleep must be validated.
 
+## Proposed Worker contract (design direction, not yet a settled implementation decision)
+
+- Use a small activity-owned `ActivityWorker` wrapper that encapsulates FreeRTOS task creation; activity code must not create a raw task directly.
+- Worker receives independently owned request input and owns progress/result storage. It must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
+- One worker/request at a time. Activity `loop()` remains responsive and consumes synchronized progress/results.
+- Cancellation is cooperative and synchronized. HTTP code must poll the cancellation token and unwind normally so C++/HTTP/file/Wi-Fi RAII cleanup runs.
+- `prepareForSleep()` requests cancellation and waits for the HTTP operation to finish before sleep plugin delivery. The worker must not need `RenderLock`; this hook is called while that lock is held.
+- `onExit()` performs idempotent stop/reap before activity destruction. `vTaskDelete` may only reap a task after its operation has returned and resources have unwound; never use it to interrupt active network code.
+- Startup failure, normal completion, cancellation, timeout, and task cleanup all need explicit states. A bounded wait is required, but current plain-HTTP connect/DNS behavior prevents claiming one until addressed.
+- The repository's two worker instructions conflict; this contract is a proposal to reconcile them, not yet a firmware decision.
+
 ## Networking and worker cancellation
 
 - Caller establishes Wi-Fi; `HttpDownloader` does not connect.
@@ -57,6 +68,10 @@ This file records decisions that should not be reopened without new evidence or 
 - Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
 - The secure GET/download path passes a cancellation callback into the pinned SDK's resumable fetch implementation. This is useful but does not prove prompt, thread-safe cancellation across every connection stage.
 - HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
+- Pinned SDK `SecureHttpClient::ensureConnected()` passes abort callback through HTTPS DNS/TCP/TLS setup, but plain HTTP calls `hostResolves()` and `WiFiClient::connect()` without checking the callback; plain connection timeout uses the configured 60 seconds.
+- `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
+- `HalStorage` serializes SD operations with a recursive mutex and wraps `HalFile` read/write/close calls. The HAL source explicitly notes SdFat itself is not thread-safe. Background file access must use `Storage`/`HalFile`, not direct SdFat; do not share a `HalFile` instance concurrently.
+- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Keep HTTP single-flight and ensure the worker has fully unwound before sleep-event delivery or Wi-Fi shutdown. `HalPowerManager::Lock` currently supports only one lock at a time.
 - `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock` and is called before sleep plugin event delivery. Worker cancellation/completion must not need `RenderLock`, must finish before sleep-event network delivery, and must have a bounded wait.
 - `onExit()` is also a required stop-and-wait fallback for non-sleep activity transitions. Do not forcibly delete a task while its network call or C++ resource cleanup is active.
 - The exact worker creation/priority/stack/cleanup policy remains unresolved because repository guidance conflicts; resolve it before implementation.
