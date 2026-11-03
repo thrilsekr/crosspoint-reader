@@ -26,6 +26,18 @@ This file records decisions that should not be reopened without new evidence or 
 - Do not introduce `reader.session` unless user explicitly asks to revisit it.
 - Automatic inactivity sleep is out of scope.
 
+## Reader-to-screensaver lifecycle
+
+- Capture the exact visible-page text and required book metadata while the reader is still alive.
+- Copy the captured data into an independently owned context; the screensaver must not retain pointers/references into the reader or its `Section`.
+- Replace the reader activity with the AI screensaver activity using `ActivityManager::replaceActivity()`; do not push the screensaver onto the activity stack and leave the reader underneath.
+- Let the normal reader `onExit()` and destruction path run before screensaver file/network work begins. This flushes reader session state and releases reader-owned EPUB/Section objects and caches.
+- The reader's normal bookmark/clipping SD writes are not evidence that arbitrary concurrent filesystem access is safe. Prefer the sequential ownership boundary above.
+- AI activity owns the copied context and screensaver workflow. Network worker never renders or manipulates the display.
+- On completion/failure, hand off to the existing main-loop deep-sleep orchestration. The AI activity must not duplicate hardware shutdown/deep-sleep steps.
+
+**Source-verified, not device-tested (2026-11-02):** `ActivityManager::replaceActivity()` defers replacement, exits/destroys the outgoing activity, clears the stack, and enters the replacement. `ReaderActivity::onExit()` flushes reader-session state and performs reader cleanup. `EpubReaderActivity` owns the EPUB and current Section through smart pointers. Exact lower-level EPUB file-handle closure and the capture/context-transfer API remain unverified.
+
 ## Architecture and rendering
 
 - AI activity owns display rendering.
