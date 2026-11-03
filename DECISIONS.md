@@ -45,7 +45,7 @@ This file records decisions that should not be reopened without new evidence or 
 
 ## Image and storage
 
-- Generate portrait-oriented imagery.
+- Generated screensaver imagery must be portrait-oriented (preferred device presentation). Landscape diagnostic fixtures are acceptable for transport/renderer tests only; they do not change the generation preference.
 - 800×400 is a target, not a hard validation rule.
 - BMP validation is permissive: validate readable header/format and complete pixel data, not dimensions/orientation/aspect ratio.
 - Renderer supports zoom-to-fit.

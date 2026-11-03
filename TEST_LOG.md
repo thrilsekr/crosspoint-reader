@@ -2,6 +2,23 @@
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
 
+## 2026-11-02 — Cumulative diagnostic: network transfer, save, and open — PASS
+
+- Firmware: cumulative diagnostic from commit `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
+- Workflow run: `41411501888`; job/check: `125165358875`; successful.
+- Artifact: `x4-cumulative-diagnostic.zip`, ID `13125857099`; binary size 5,590,784 bytes; SHA-256 `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
+- Receiver observed sleep-event `POST /event`: JSON body 235 bytes; HTTP 200.
+- Receiver observed diagnostic `GET /event`: HTTP 200; X4 displayed **Get pass**.
+- Receiver observed diagnostic `POST /event`: form body `test=x4-post-test` (17 bytes); HTTP 200; X4 displayed **Post pass**.
+- Receiver observed `GET /test.bmp`: sent 960,054 bytes; HTTP 200; X4 displayed **Get test.bmp Pass**.
+- X4 reported `Bmp file: SAVED`.
+- User opened `x4-download-test.bmp` on-device; it processed and opened successfully.
+- Diagnostic BMP was landscape. User confirmed portrait is preferred for generated screensaver images.
+- **Result: PASS** for local event POST, diagnostic GET/POST, BMP HTTP transfer, filesystem save, and BMP processing/opening.
+- **Scope limit:** this validates the downloaded BMP file and normal image-open path; it does not yet validate integration with the sleep/screensaver activity or reading-context capture.
+- No additional build required for these record updates.
+
+
 ## 2026-11-02 — Cumulative diagnostic firmware build
 
 - Commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`
@@ -12,8 +29,8 @@ Newest entries first. Record actual results only; label hypotheses explicitly.
 - Completed: 2026-11-02 08:19:28 UTC.
 - Branch: `ai-screensaver/2.0.0-baseline`.
 - Code change: GET, POST, and BMP attempts/results are tracked separately; result screen shows cumulative outcomes and BMP file status.
-- Artifact retrieval and binary hash verification: pending.
-- Device installation/test of this commit: not confirmed.
+- Artifact retrieval and binary hash verification: completed; see test entry below.
+- Device installation and cumulative diagnostic test: subsequently confirmed; see test entry below.
 
 ## 2026-11-02 — Cumulative diagnostic artifact retrieved and verified\n\n- Artifact ID: `13125857099`.\n- ZIP: `x4-cumulative-diagnostic.zip`.\n- Contents: `firmware.bin`.\n- Firmware binary size: 5,590,784 bytes.\n- Firmware binary SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.\n- Artifact is associated with code commit `98811e06eb687e83fba58eef2de86a8a2fb409f0`.\n- Build succeeded; artifact inspected. Device installation remains pending.\n\n## 2026-11-02 — Updated local receiver script provided
 

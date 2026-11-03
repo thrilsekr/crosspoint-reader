@@ -38,40 +38,54 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - Working branch: `ai-screensaver/2.0.0-baseline`
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
-- Latest code commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
+- Latest firmware/source diagnostic commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
+- Latest branch HEAD at 2026-11-02 record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (documentation/workflow-only changes after the diagnostic firmware commit).
 - Project records are versioned on the same branch; verify the live branch HEAD when resuming.
 - Latest commit message: “Keep cumulative results in local X4 diagnostic”.
 - Latest recorded GitHub Actions check: run/job `125165358875`, completed successfully at 2026-11-02 08:19:28 UTC.
 - Workflow name still says “Build CrossPoint 2.0.0 X4 baseline”.
 - Latest build artifact retrieved and inspected: artifact ID `13125857099`, ZIP `x4-cumulative-diagnostic.zip`.
 - ZIP contains `firmware.bin`, 5,590,784 bytes; SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
-- This binary is built from code commit `98811e06`; it has not yet been installed on the X4.
+- This binary is built from code commit `98811e06`; installation and successful device test are confirmed in the current milestone below.
 
 ## Current milestone
 
-**Milestone: complete the local BMP download diagnostic.**
+**Milestone: local networking + BMP download/save/open diagnostic — DONE (2026-11-02).**
 
-### Current state
+### Confirmed device results
 
-- A local Windows PowerShell receiver listens on port `8765`.
-- The user has just said they will paste the revised receiver script into the existing `.ps1` file. Do not ask them to repeat this.
-- Revised receiver behavior: creates a valid 800×400 24-bit BMP; logs accepted connections, request lines, headers, bodies, response status, and disconnects; serves only GET `/test.bmp`; supports GET/POST `/event`; returns 404 for unknown routes; Q stops the receiver.
-- The receiver is not yet confirmed running with the revised script.
-- Earlier GET `/event` test returned HTTP 200.
-- Earlier POST `/event` test reached the receiver with form body `test=x4-post-test` and received HTTP 200.
-- Latest BMP diagnostic test did not succeed: device reported HTTP 0 and receiver did not show a corresponding BMP request. This indicates no HTTP response, not necessarily that TCP connection was never made.
-- A cumulative diagnostic UI change was committed at `98811e06`; it retains GET, POST, and BMP outcomes rather than overwriting earlier stage messages.
-- The last known installed firmware is the earlier BMP-download diagnostic build (commit `6802c434874d9eb5f38107d5158f3fd69694e134`), not confirmed to be the cumulative-results build.
-- No new firmware installation has been requested or confirmed after commit `98811e06`.
+Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8a2fb409f0` was installed and tested on the original X4.
 
-### Next actions (assistant-owned unless device interaction is needed)
+- Receiver accepted device connections and returned HTTP 200 for diagnostic GET/POST and BMP GET.
+- Sleep-event POST `/event`: JSON body received (235 bytes); HTTP 200.
+- Diagnostic GET `/event`: HTTP 200; X4 screen: **Get pass**.
+- Diagnostic POST `/event`: form body `test=x4-post-test` received (17 bytes); HTTP 200; X4 screen: **Post pass**.
+- GET `/test.bmp`: receiver sent 960,054 bytes; HTTP 200; X4 screen: **Get test.bmp Pass**.
+- X4 file status: **Bmp file: SAVED**.
+- User opened `x4-download-test.bmp` on the X4; it processed and opened successfully.
+- The diagnostic fixture was landscape. This was a transport/render test only; generated screensaver imagery should be portrait-oriented.
+- Receiver endpoint was local-only on port 8765. User's private LAN details are not part of project records.
 
-1. Retrieve the successful GitHub Actions run details and artifact for commit `98811e06`.
-2. Verify the artifact contents, firmware binary size, and SHA-256 before presenting an installation link.
-3. Once the user has pasted and started the revised receiver, provide one concise device-test sequence using the verified build.
-4. Interpret the cumulative X4 diagnostic screen together with receiver logs.
-5. Fix the actual failure point; do not repeat tests without a specific reason.
-6. Update this handoff and TEST_LOG.md with the outcome.
+### Build/artifact used
+
+- Firmware source commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0` (“Keep cumulative results in local X4 diagnostic”).
+- Workflow run: `41411501888`; job/check: `125165358875`; result: success.
+- Artifact ID: `13125857099`; ZIP: `x4-cumulative-diagnostic.zip`.
+- Binary: `firmware.bin`, 5,590,784 bytes.
+- SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
+- Branch HEAD at record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (“Make X4 diagnostic builds manual-only”).
+- Workflow is `workflow_dispatch` only, X4-only; documentation commits/pushes do not trigger builds.
+- No firmware rebuild is needed for this documentation update.
+
+### Next milestone
+
+**Reader/screensaver integration design and implementation planning.**
+
+1. Re-check the exact CrossPoint 2.0.0 activity/render lifecycle and available file/image display path.
+2. Resolve lifecycle-safe network work and Wi-Fi ownership before implementation; do not create an ad-hoc FreeRTOS task in an activity.
+3. Define the smallest integration slice: trigger, capture page text, show fallback, retrieve portrait BMP, validate, display, and fail safely.
+4. Verify the design against the pinned SDK and resource limits before changing firmware.
+5. Build only when an implementation change is ready for a meaningful device test.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
