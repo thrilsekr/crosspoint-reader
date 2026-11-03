@@ -17,10 +17,12 @@ This file records decisions that should not be reopened without new evidence or 
 
 ## Reader integration
 
-- Trigger via configurable short power-button action, proposed setting value `AI_SCREENSAVER=7`.
+- Trigger via configurable short power-button action, append persisted setting value `AI_SCREENSAVER=10` (values 0–9 are already occupied).
+- Original X4 is a no-touch profile. Its existing reader loop handles short power release directly via `mappedInput.wasReleased(Button::Power)`; use this path, with the existing simultaneous-Down guard. Do not rely on the touch-board-only `MappedInputManager` bookmark/sync/menu mapping.
+- Add the option to `SettingsList.h::shortPowerButtonOptions()`; leave long-press power-down unchanged.
 - Do not renumber existing `SHORT_PWRBTN` values.
 - Long press remains existing power-down behavior.
-- Capture exact visible page text from the reader's current `Section` using `getTextFromSectionFile()` at trigger time.
+- Capture current-page text from the reader's `Section` using `getTextFromSectionFile()` at trigger time. In the pinned SDK, it loads `currentPage` and extracts that page's text blocks, not the whole chapter. It joins words with spaces and does not preserve all original layout/spacing or non-text elements.
 - Do not use QR in the final flow; it was only a validation method.
 - Do not depend on plugin/event payloads for reader text.
 - Do not introduce `reader.session` unless user explicitly asks to revisit it.
@@ -36,7 +38,7 @@ This file records decisions that should not be reopened without new evidence or 
 - AI activity owns the copied context and screensaver workflow. Network worker never renders or manipulates the display.
 - On completion/failure, hand off to the existing main-loop deep-sleep orchestration. The AI activity must not duplicate hardware shutdown/deep-sleep steps.
 
-**Source-verified, not device-tested (2026-11-02):** `ActivityManager::replaceActivity()` defers replacement, exits/destroys the outgoing activity, clears the stack, and enters the replacement. `ReaderActivity::onExit()` flushes reader-session state and performs reader cleanup. `EpubReaderActivity` owns the EPUB and current Section through smart pointers. Exact lower-level EPUB file-handle closure and the capture/context-transfer API remain unverified.
+**Source-verified, not device-tested (2026-11-02):** `ActivityManager::replaceActivity()` defers replacement, exits/destroys the outgoing activity, clears the stack, and enters the replacement. `ReaderActivity::onExit()` flushes reader-session state and performs reader cleanup. `EpubReaderActivity` owns the EPUB and current Section through smart pointers. `Section::~Section()` performs its cleanup/suspend path. Exact lower-level EPUB file-handle closure and the concrete `ReadingContext` API remain unverified.
 
 ## Architecture and rendering
 
