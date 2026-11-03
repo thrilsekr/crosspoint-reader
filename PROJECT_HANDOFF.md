@@ -79,27 +79,28 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Next milestone
 
-**Reader/screensaver integration design — lifecycle path verified; context handoff still under investigation.**
+**Reader/screensaver integration source investigation — capture, lifecycle, and X4 trigger path verified; worker design remains open.**
 
-1. Verify how to copy the exact visible page text and required book metadata into an independently owned context before the reader is destroyed.
-2. Verify the short-power-button input path can request the replacement without violating input-frame or activity-transition rules.
-3. Finish resolving lifecycle-safe network execution, cancellation, and Wi-Fi ownership. Do not create an ad-hoc FreeRTOS task in an activity.
-4. Verify the existing image-display path and the handoff to the main loop's established deep-sleep orchestrator.
-5. Only after the complete flow is verified, propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+1. Design the owned `ReadingContext` value object and confirm the exact metadata fields to copy. Do not retain reader/EPUB/Section pointers.
+2. Verify lifecycle-safe network execution, cancellation, and Wi-Fi ownership. Do not create an ad-hoc FreeRTOS task in an activity.
+3. Verify the existing image-display path and handoff to the main loop's established deep-sleep orchestrator.
+4. Once those remaining pieces are verified, propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
 ### Reader text and trigger
 
 - `EpubReaderActivity` owns the current `Section`.
-- `section->getTextFromSectionFile()` returns the exact rendered page text. The user verified decoded QR text against the visible page; formatting aside, the text matched.
-- QR is verification only; final solution will not require QR.
+- `section->getTextFromSectionFile()` is page-specific: `Section.cpp` calls `loadPage(currentPage)` and extracts the text blocks from that page, not the whole chapter.
+- The method reconstructs text by joining words with spaces; it does not preserve all EPUB layout/spacing or non-text elements. User's earlier QR decode matched the visible page text apart from formatting.
+- Reuse this method for the first integration rather than adding a second EPUB text extractor. QR is verification only; final solution will not require QR.
 - Plugin/event APIs cannot access the current `Section`, invoke QR generation, or retrieve page text.
 - A firmware fork can reuse `getTextFromSectionFile()`.
 - Main trigger is the short power-button action. Long press remains OEM power-down behavior.
-- `SHORT_PWRBTN` values in `src/CrossPointSettings.h`: 0 Ignore, 1 Sleep, 2 Page Turn, 3 Force Refresh, 4 Links and Footnotes, 5 Power Confirm, 6 Create Clipping. Proposed new value: `AI_SCREENSAVER=7`; do not renumber existing values.
-- `SettingsList.h` contains `shortPowerButtonOptions()`; `SettingsActivity.cpp` displays/saves the setting.
-- Input loop handles short vs long press; existing threshold 400 ms, special 10 ms for Sleep.
+- `SHORT_PWRBTN` values in `src/CrossPointSettings.h`: 0 Ignore, 1 Sleep, 2 Page Turn, 3 Force Refresh, 4 Footnotes, 5 Power Confirm, 6 Create Clipping, 7 Bookmark, 8 Sync, 9 Reader Menu. Append `AI_SCREENSAVER=10`; do not renumber existing persisted values.
+- `SettingsList.h::shortPowerButtonOptions()` maps persisted values to the user-facing list; add the new option there. For the original X4 (no touch), existing bookmark/sync/reader-menu entries are not offered by the touch-board-only branch.
+- The original X4 uses the direct short-power release path in `EpubReaderActivity::loop()`, alongside existing clipping/footnote handling. Follow that pattern and guard against simultaneous Down release. Keep long-press power-down behavior unchanged.
+- Existing power-button duration handling distinguishes Sleep (10 ms) from other actions (400 ms).
 - Automatic inactivity sleep is out of scope.
 
 ### Reader lifecycle and rendering
@@ -118,7 +119,7 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - `requestUpdate()` and `requestUpdateAndWait()` are available.
 - Network worker must never draw.
 - `docs/activity-manager.md` advises against `xTaskCreate` inside activities and recommends a lifecycle-aware Worker abstraction. No general-purpose Worker abstraction was found in the exact SDK tree. Do not create an ad-hoc task without a lifecycle-safe design.
-- The exact context-copy API, short-power-button transition path, lower-level EPUB handle closure, and lifecycle-safe network worker remain to be verified.
+- The source-supported capture and replacement approach is established. Exact `ReadingContext` definition/constructor and metadata field selection remain design work. Lower-level EPUB file-handle close behavior has not been independently verified; object destruction and Section cleanup order are confirmed. Lifecycle-safe network worker remains unresolved.
 
 ### HTTP and Wi-Fi
 
