@@ -2,9 +2,11 @@ name: X4 local GET diagnostic build
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ai-screensaver/2.0.0-baseline
+
+# Prevent overlapping diagnostic builds from consuming unnecessary runner time.
+concurrency:
+  group: x4-diagnostic-build
+  cancel-in-progress: true
 
 permissions:
   contents: read
