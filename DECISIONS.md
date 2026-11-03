@@ -45,15 +45,21 @@ This file records decisions that should not be reopened without new evidence or 
 - AI activity owns display rendering.
 - Network code must not draw to the display.
 - Capture page text once and retain an owned copy.
-- Do not create ad-hoc FreeRTOS tasks inside activities. Exact CrossPoint documentation advises against `xTaskCreate` there; no lifecycle-aware Worker abstraction was found in the pinned SDK. Resolve lifecycle-safe networking before implementation.
+- Do not create an ad-hoc FreeRTOS task inside an activity. The pinned source contains conflicting worker guidance: `docs/activity-manager.md` says not to call `xTaskCreate` in activities and to propose a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the inspected firmware/SDK tree. Resolve this conflict and define an explicit lifecycle/cancellation contract before implementation.
 - Use existing activity stack and render-lock mechanisms.
 - Network polling and transition to deep sleep must be validated.
 
-## Networking
+## Networking and worker cancellation
 
 - Caller establishes Wi-Fi; `HttpDownloader` does not connect.
 - Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
-- Do not run concurrent HTTP requests.
+- Do not run concurrent HTTP requests. `HttpDownloader` explicitly documents itself as not thread-safe and permits one fetch at a time.
+- Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
+- The secure GET/download path passes a cancellation callback into the pinned SDK's resumable fetch implementation. This is useful but does not prove prompt, thread-safe cancellation across every connection stage.
+- HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
+- `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock` and is called before sleep plugin event delivery. Worker cancellation/completion must not need `RenderLock`, must finish before sleep-event network delivery, and must have a bounded wait.
+- `onExit()` is also a required stop-and-wait fallback for non-sleep activity transitions. Do not forcibly delete a task while its network call or C++ resource cleanup is active.
+- The exact worker creation/priority/stack/cleanup policy remains unresolved because repository guidance conflicts; resolve it before implementation.
 - Respect `downloadToFile()` staging behavior (`.part`, replace on success, remove partial on failure).
 - Keep service local-only where practical; no public exposure of the local receiver.
 
