@@ -79,13 +79,15 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Next milestone
 
-**Worker/lifecycle investigation — source reviewed; architecture direction identified, task policy conflict unresolved.**
+**Worker/lifecycle investigation — architecture direction identified; cancellation and policy details remain open.**
 
-1. Resolve the conflicting repository guidance for activity-owned workers before creating any task: `docs/activity-manager.md` prohibits `xTaskCreate` in activities and calls for a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the pinned firmware/SDK source.
-2. Define a minimal Worker contract: ownership, startup failure, synchronized cancellation, completion/join, task cleanup, stack sizing, and single-flight HTTP ownership. Do not implement until the policy conflict and contract are resolved.
-3. Decide how to make HTTP cancellation thread-safe. Existing `HttpDownloader` cancellation accepts `const bool*`; it is not an atomic/thread-safe contract. `fetchUrl()` and `postForm()` have no cancellation parameter.
-4. Integrate stop-and-wait with `prepareForSleep()` and `onExit()`. `prepareForSleep()` is invoked under `RenderLock` before sleep plugin delivery; worker shutdown must not require that lock, and its wait must be bounded.
-5. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+1. Proposed minimal abstraction: an activity-owned `ActivityWorker` wrapper that encapsulates task creation; the activity must not call raw `xTaskCreate`. Worker receives copied inputs, owns its result/progress state, and never retains or calls the Activity.
+2. Worker performs one synchronous HTTP operation at a time. Activity `loop()` remains responsive and reads synchronized progress/results. Worker never renders or acquires `RenderLock`.
+3. `prepareForSleep()` requests cooperative cancellation and waits for the HTTP operation to unwind before sleep-event delivery. The worker must not require `RenderLock`; `onExit()` performs idempotent final stop/reap before destruction. `vTaskDelete` may reap only a completed/parked task, never interrupt an active HTTP call.
+4. Resolve thread-safe cancellation and bounded plain-HTTP connection cancellation. Existing cancellation accepts `const bool*`; `fetchUrl()` and `postForm()` lack cancellation; the pinned SDK's plain HTTP DNS/connect path does not poll the abort callback and uses a 60-second connection timeout.
+5. Confirm Wi-Fi ownership and use only `HalStorage`/`HalFile` for cross-task file work. HAL serializes individual SD operations; direct SdFat use is not thread-safe.
+6. Resolve conflicting repository worker guidance (`docs/activity-manager.md` versus `.agents/rules/ui-activities.md`) into an explicit contract before implementation.
+7. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
@@ -155,6 +157,11 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 **DESIGN DIRECTION (not yet an approved implementation contract):** a small lifecycle-aware Worker owned by the AI activity, with independently owned request input/result, synchronized cooperative cancellation, one network operation at a time, and a completion handshake before resources are released. No worker rendering and no forced task deletion while HTTP/C++ resources are active.
 
 **UNRESOLVED:** exact task creation/priority/stack/cleanup policy; atomic cancellation integration through all HTTP APIs and SDK plain-HTTP connection stages; bounded completion strategy; Wi-Fi ownership and coordination. No code, build, or device test performed for this investigation.
+
+- **Existing network activity pattern CONFIRMED:** `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP work from activity/main-loop logic after forcing a render. This blocks normal activity-loop processing and is not the desired AI screensaver model.
+- **Storage concurrency boundary CONFIRMED:** `HalStorage` uses a recursive mutex around SD operations and `HalFile` read/write/close operations; its implementation explicitly notes SdFat is not thread-safe. Worker file I/O must go through `Storage`/`HalFile`, not direct SdFat, and a single `HalFile` instance should have one owner at a time.
+- `WifiPowerSaveGuard` changes the global Wi-Fi power-save mode for the duration of a request. `HalPowerManager::Lock` currently supports only one lock at a time. Avoid concurrent network operations or overlapping power-lock assumptions.
+- **Pinned SDK cancellation detail CONFIRMED:** HTTPS connection setup passes the abort callback through DNS/TCP/TLS; read loops also poll it. The plain HTTP path calls host resolution and TCP connect without the abort callback, using the configured connection timeout (currently 60 seconds). This is a concrete cancellation-latency gap for local plain-HTTP requests.
 
 ### Event behavior
 
