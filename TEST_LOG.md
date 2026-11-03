@@ -1,3 +1,19 @@
+## 2026-11-02 — Worker lifecycle and network cancellation source investigation — PARTIALLY RESOLVED (not device-tested)
+
+Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+
+- **Execution model CONFIRMED:** ESP32-C3 is single-core; the existing render task is owned by ActivityManager. No reusable general-purpose Worker implementation was found in the inspected firmware/SDK source trees.
+- **Repository policy conflict CONFIRMED:** `docs/activity-manager.md` says do not call `xTaskCreate` inside activities and proposes a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers require synchronization and `vTaskDelete()` in `onExit()`. Resolve this conflict and define a safe contract before creating a task.
+- **Sleep hook CONFIRMED:** `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock`. The main deep-sleep path calls it before sleep plugin delivery, then later replaces the activity via `goToSleep()`, shuts down Wi-Fi, and prepares storage/display for deep sleep.
+- **Deadlock constraint:** worker shutdown from `prepareForSleep()` cannot depend on acquiring `RenderLock`. Worker completion must precede sleep-event delivery, which also uses network access.
+- **HTTP serialization CONFIRMED:** `HttpDownloader.h` explicitly says it is not thread-safe and one fetch runs at a time.
+- **Cancellation gap CONFIRMED:** `downloadToFile()` and `postToFile()` accept `const bool*`; plain shared-bool access is not a synchronized cross-task contract. `fetchUrl()` and `postForm()` expose no cancellation parameter.
+- **SDK mechanism CONFIRMED:** secure resumable GET/download passes a cancellation callback into the pinned SDK. This does not establish safe cross-task flag access or bounded cancellation at every connection stage.
+- HTTP timeout is 60,000 ms per socket operation, not a total request deadline and not proof of prompt cancellation.
+- **Design direction (not approved contract):** activity-owned lifecycle-aware Worker; owned inputs/results; synchronized cooperative cancellation; single-flight network access; completion handshake before resources are released; no rendering in worker.
+- **Unresolved:** task creation/priority/stack/cleanup policy; safe cancellation through HTTP APIs and plain-HTTP stages; bounded stop/wait; Wi-Fi ownership.
+- No source files changed; no build; no device test. Documentation records only.
+
 # Xteink AI Screensaver — Test and Build Log
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
