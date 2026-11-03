@@ -1,3 +1,15 @@
+## 2026-11-02 — Worker design constraints: activity patterns, storage, and cancellation — SOURCE VERIFIED
+
+Additional pinned-source inspection: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+
+- `ClockSyncActivity` and `FontDownloadActivity` execute synchronous HTTP calls from activity/main-loop logic after `requestUpdateAndWait()`; this displays progress before blocking but does not keep the activity loop responsive.
+- `HalStorage` uses a recursive FreeRTOS mutex around SD operations. `HalFile` read/write/close calls are wrapped by the same lock. Its source explicitly states SdFat is not thread-safe. Cross-task file I/O must use `Storage`/`HalFile`, not direct SdFat; each `HalFile` object should have one owner.
+- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode for the request lifetime. `HalPowerManager::Lock` has an explicit current limitation: only one lock at a time.
+- **Pinned SDK cancellation verified:** `SecureHttpClient::ensureConnected()` passes the abort callback through HTTPS DNS/TCP/TLS connection setup. Its plain HTTP branch calls `hostResolves()` and `WiFiClient::connect()` without the abort callback and uses the configured connection timeout (60,000 ms currently). HTTP read loops poll abort callbacks.
+- **Architecture direction proposed, not implemented:** activity-owned `ActivityWorker` wrapper encapsulates task creation; worker receives owned inputs and owns synchronized progress/results; no Activity pointer, rendering, or RenderLock access; one HTTP request at a time; cooperative cancellation and completion handshake; `prepareForSleep()` cancels and waits before sleep-event delivery; `onExit()` idempotently reaps before destruction. `vTaskDelete` must never interrupt active HTTP/resource cleanup.
+- **Still unresolved:** reconcile conflicting repository worker instructions; thread-safe cancellation API for all required HTTP methods; bounded cancellation during plain HTTP resolution/connect; Wi-Fi ownership; task priority/stack/reaping details.
+- No code changes, firmware build, or device test.
+
 ## 2026-11-02 — Worker lifecycle and network cancellation source investigation — PARTIALLY RESOLVED (not device-tested)
 
 Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
