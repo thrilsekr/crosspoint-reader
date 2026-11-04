@@ -96,9 +96,9 @@ This file records decisions that should not be reopened without new evidence or 
 
 ## CI and build policy
 
-- The project branch CI workflow runs on pull requests, not direct pushes. A changed-file gate skips heavy checks for documentation/workflow-only changes.
-- Firmware builds are X4-only via the `default` environment. Do not expand the matrix to the other seven board environments until the project explicitly expands device scope.
-- PR firmware-artifact comments expose only the X4 artifact. The separate X4 diagnostic build remains manual (`workflow_dispatch`) and is not triggered by PR merges.
+- Target policy: run project CI on pull requests, not direct pushes, and use a changed-file gate to skip heavy checks for documentation/workflow-only changes. The current workflow has not yet been updated.
+- Target firmware matrix: X4-only via the `default` environment. The current workflow still lists eight environments; do not expand device scope, and update this matrix before opening the next project PR.
+- Target PR firmware-artifact comments expose only the X4 artifact. The separate X4 diagnostic build remains manual (`workflow_dispatch`) and is not triggered by PR merges.
 - Use PRs for repository changes; do not push project work directly to `develop`.
 
 ## Diagnostic workflow
