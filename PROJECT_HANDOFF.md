@@ -1,6 +1,6 @@
 # Xteink X4 AI Screensaver Project Handoff
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 ## Mission
 
@@ -35,7 +35,7 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 ## Repository and pinned baseline
 
 - Personal fork: https://github.com/thrilsekr/crosspoint-reader
-- Working branch: `ai-screensaver/2.0.0-baseline`
+- Working branch: `feat/x4-reader-screensaver-transition` (branched from `ai-screensaver/2.0.0-baseline` at `23be366a9b5bac3d125b93901b5a884c3b6a2f0b`)
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
 - Latest firmware/source diagnostic commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
@@ -77,7 +77,19 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - Workflow is `workflow_dispatch` only, X4-only; documentation commits/pushes do not trigger builds.
 - No firmware rebuild is needed for this documentation update.
 
-### Next milestone
+### Current milestone
+
+**Reader trigger + context preview — SOURCE IMPLEMENTED; build/device test pending (2026-11-03).**
+
+- New branch: `feat/x4-reader-screensaver-transition`.
+- Appended persisted setting `AI_SCREENSAVER=10`; values 0–9 remain unchanged. The option appears in the no-touch short-power setting list.
+- The X4 short-power release path now captures current-page text plus book title/author and replaces the reader with CrossPoint's existing `DetailsActivity` as a temporary context-preview screen.
+- The preview is intentionally a test harness, not the final screensaver UI. No network request, image generation, worker, or sleep transition is included.
+- The existing reader replacement lifecycle is relied upon: `replaceActivity()` defers until the reader loop returns, then calls reader `onExit()`/destruction before the preview's `onEnter()`.
+- English translation keys are added in `lib/I18n/translations/english.yaml`; PlatformIO's existing pre-build script generates the i18n C++ files.
+- **Not yet built or device-tested.** GitHub Actions workflow is manual-only. The available GitHub connection has no workflow-dispatch action; a manual X4 workflow run is required before device sideload testing.
+
+## Subsequent milestone
 
 **Worker/lifecycle investigation — architecture direction identified; cancellation and policy details remain open.**
 
