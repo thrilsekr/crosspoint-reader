@@ -1,3 +1,15 @@
+## 2026-11-04 — X4 reader trigger + context preview — DEVICE PASS
+
+- Firmware source commit: `3360e939950fbf5d35022a085ec213628b7ec287`; built by manual X4 workflow run `41773580611`, job `126388673607`.
+- Artifact ID: `13296867371`; firmware binary SHA-256: `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`.
+- User sideloaded the verified firmware onto the original X4.
+- Short press in system menu: no action, as expected (trigger is reader-scoped).
+- Short press in EPUB reader: temporary context preview opened successfully.
+- Preview showed the correct book title and author and captured the current page's text.
+- Generic preview UI displays on-screen button affordances and duplicated physical Back hints. **Not a defect in the customer flow:** this is temporary `DetailsActivity` test UI and will be replaced by the final screensaver activity. No cleanup required here.
+- **Result: PASS** for reader-only trigger, activity handoff, book metadata capture, and current-page text capture.
+- Networking, image generation, worker lifecycle, and sleep transition remain unimplemented/untested. No additional firmware build required for this documentation update.
+
 ## 2026-11-04 — Reader trigger + context preview build — BUILD PASS; device test pending
 
 - Branch: `feat/x4-reader-screensaver-transition`; source commit: `3360e939950fbf5d35022a085ec213628b7ec287`.
