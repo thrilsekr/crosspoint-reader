@@ -10,7 +10,7 @@ Pinned CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; pinned FreeInk S
 - **Worker lifecycle DECIDED:** application-lifetime service owns worker/task/request/result; worker has no Activity pointer or render access. ActivityManager defers exits until service idle. `onExit()` never blocks or forcibly deletes an active task. Worker unwinds RAII, publishes completion, and self-deletes.
 - **Five-second target ACCEPTED:** use a 5,000 ms per-socket/connect timeout for the initial local request. It is not a strict total deadline; keep exit pending until cleanup really completes. Reducing the delay is a future optimization.
 - **CI run inspected:** `41885073421` was a push-triggered `CI (build)` on `develop`. All eight board builds succeeded. `cppcheck` setup failed because Ubuntu 26.04 could not locate `libpcre3`; `Test Status` then failed. This is a CI environment/setup failure, not a firmware compile failure.
-- CI policy is being narrowed to PR-only, heavy jobs only for relevant code changes, and X4-only firmware builds. PR firmware links will expose only X4.
+- Target CI policy is PR-only, heavy jobs only for relevant code changes, and X4-only firmware builds. The workflow files are still unchanged on this branch; implement the policy before opening this PR to avoid the current eight-board CI matrix.
 - **Not tested:** no worker implementation, firmware build, or X4 device test has been performed for this milestone.
 
 ## 2026-11-02 — Worker design constraints: activity patterns, storage, and cancellation — SOURCE VERIFIED
