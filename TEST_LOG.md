@@ -1,3 +1,13 @@
+## 2026-11-04 — Reader trigger + context preview build — BUILD PASS; device test pending
+
+- Branch: `feat/x4-reader-screensaver-transition`; source commit: `3360e939950fbf5d35022a085ec213628b7ec287`.
+- Workflow run: `41773580611`; job: `126388673607`; event: manual `workflow_dispatch`; result: **success**.
+- CrossPoint 2.0.0 base and exact FreeInk SDK pin checks passed. PlatformIO build and artifact upload both completed successfully.
+- Artifact: `crosspoint-2.0.0-x4-local-get-test`, ID `13296835671`; ZIP size 3,645,865 bytes; ZIP SHA-256 `4235fc8e59a8b23549890eed9da5715a90f95f3b107e9cbfc17d8d4284f748f0`.
+- Extracted `firmware.bin`: 5,591,680 bytes; ESP32-C3 application image; project `crosspoint-reader`; embedded version `3360e939`; binary SHA-256 `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`.
+- Build memory report: RAM 20.4% (66,712 / 327,680 bytes); Flash 85.1% (5,577,161 / 6,553,600 bytes).
+- **Device status: NOT TESTED.** Successful build does not establish device behavior. Next: sideload the verified artifact only for the planned X4 test; check AI Screensaver setting, short-power trigger, captured book metadata/page text, and Back behavior. No firmware has been installed by this build.
+
 ## 2026-11-03 — X4 reader trigger/context preview implementation (not built)
 
 - Branch: `feat/x4-reader-screensaver-transition`, based on baseline commit `23be366a9b5bac3d125b93901b5a884c3b6a2f0b`.
