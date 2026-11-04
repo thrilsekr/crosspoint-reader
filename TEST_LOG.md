@@ -1,3 +1,18 @@
+## 2026-11-04 — Worker lifecycle/cancellation design and CI policy — SOURCE VERIFIED / DESIGN SETTLED
+
+Pinned CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; pinned FreeInk SDK `5e94fe7480f019c89fbf691aef87523eb1b46704`; platform pioarduino `55.03.311` / Arduino Core `3.3.11`.
+
+- **Activity lifecycle CONFIRMED:** `ActivityManager::loop()` processes pending Pop/Replace actions after the activity loop and acquires `RenderLock` for destruction. A nonblocking pre-exit readiness gate can be checked before acquiring the lock; while not ready, keep the pending action and allow the activity to continue looping.
+- **Sleep ordering CONFIRMED:** `ActivityManager::prepareForSleep()` acquires `RenderLock` and calls activity hooks. `main.cpp` invokes it before emitting/draining sleep plugin events. Therefore the hook only requests cancellation; the main task must wait for worker completion and Wi-Fi cleanup after the hook returns and before event drain.
+- **HTTP cancellation CONFIRMED:** `HttpDownloader` is single-flight/not thread-safe. Existing file-download cancellation uses an ordinary `bool*`; `fetchUrl()` and `postForm()` lack cancellation parameters. A synchronized atomic cancellation token and cancellable GET path are required.
+- **Timeout path CONFIRMED:** pinned SDK `SecureHttpClient::setTimeout()` configures plain-HTTP connection and socket timeouts. The SDK polls abort during response reads; plain-HTTP TCP connect does not poll abort. The pinned Arduino Core 3.3.11 `NetworkManager::hostByName()` parses numeric IP literals before DNS, so the first local endpoint can use an IPv4 literal to avoid DNS.
+- **Wi-Fi contract DECIDED:** main task loads/copies saved credentials, reuses an existing connected STA, and only connects when Wi-Fi is off. It does not commandeer an active non-connected mode. It disconnects only a connection established by the AI service. Worker performs HTTP only; sleep event drain starts after worker completion.
+- **Worker lifecycle DECIDED:** application-lifetime service owns worker/task/request/result; worker has no Activity pointer or render access. ActivityManager defers exits until service idle. `onExit()` never blocks or forcibly deletes an active task. Worker unwinds RAII, publishes completion, and self-deletes.
+- **Five-second target ACCEPTED:** use a 5,000 ms per-socket/connect timeout for the initial local request. It is not a strict total deadline; keep exit pending until cleanup really completes. Reducing the delay is a future optimization.
+- **CI run inspected:** `41885073421` was a push-triggered `CI (build)` on `develop`. All eight board builds succeeded. `cppcheck` setup failed because Ubuntu 26.04 could not locate `libpcre3`; `Test Status` then failed. This is a CI environment/setup failure, not a firmware compile failure.
+- CI policy is being narrowed to PR-only, heavy jobs only for relevant code changes, and X4-only firmware builds. PR firmware links will expose only X4.
+- **Not tested:** no worker implementation, firmware build, or X4 device test has been performed for this milestone.
+
 ## 2026-11-02 — Worker design constraints: activity patterns, storage, and cancellation — SOURCE VERIFIED
 
 Additional pinned-source inspection: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
