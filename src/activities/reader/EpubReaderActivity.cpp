@@ -53,6 +53,7 @@
 #include "SdCardFontSystem.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/util/DetailsActivity.h"
 #include "activities/settings/TextSettingsActivity.h"
 #include "clippings/ClippingText.h"
 #include "clippings/ClippingsManager.h"
@@ -945,6 +946,36 @@ void EpubReaderActivity::loop() {
       mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
     startClipSelection();
+    return;
+  }
+
+  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::AI_SCREENSAVER &&
+      mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+    DetailsSpec spec;
+    spec.header = tr(STR_AI_SCREENSAVER);
+    spec.title = getBookTitle();
+    spec.author = getBookAuthor();
+    spec.descriptionHeading = tr(STR_CAPTURED_PAGE_TEXT);
+    spec.actionLabel = tr(STR_BACK);
+
+    if (section && section->currentPage >= 0 && section->currentPage < section->pageCount) {
+      spec.description = section->getTextFromSectionFile();
+    }
+    if (spec.description.empty()) {
+      spec.description = tr(STR_NO_PAGE_TEXT);
+    }
+
+    auto preview = makeUniqueNoThrow<DetailsActivity>(renderer, mappedInput, std::move(spec));
+    if (!preview) {
+      LOG_ERR("ERS", "OOM creating AI screensaver context preview");
+      requestUpdate();
+      return;
+    }
+    // replaceActivity() defers teardown until this loop returns. The reader's
+    // onExit/destructor therefore release EPUB/Section ownership before the
+    // preview becomes active.
+    activityManager.replaceActivity(std::move(preview));
     return;
   }
 
