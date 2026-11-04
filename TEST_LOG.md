@@ -1,3 +1,14 @@
+## 2026-11-03 — X4 reader trigger/context preview implementation (not built)
+
+- Branch: `feat/x4-reader-screensaver-transition`, based on baseline commit `23be366a9b5bac3d125b93901b5a884c3b6a2f0b`.
+- Added persisted short-power action `AI_SCREENSAVER=10`; existing values 0–9 are unchanged.
+- Added the option to the no-touch short-power setting list and English strings for the context preview.
+- The X4 reader power-release path copies current-page text and book title/author into a `DetailsSpec`, then calls `ActivityManager::replaceActivity()` with the existing `DetailsActivity`.
+- The preview is a temporary integration harness only. It does not start networking, image generation, a worker task, or simulated sleep.
+- Source review confirms `replaceActivity()` defers the replacement until the current loop returns, then exits/destroys the reader before entering the preview.
+- **Build status: NOT RUN. Device status: NOT TESTED.** No firmware artifact is available for this change yet.
+- Next: perform the manual X4-only workflow build, inspect compiler output/artifact, then sideload and verify setting selection, power-button trigger, captured book metadata/page text, and Back behavior. Preserve the installed firmware until the build artifact is inspected.
+
 ## 2026-11-02 — Worker design constraints: activity patterns, storage, and cancellation — SOURCE VERIFIED
 
 Additional pinned-source inspection: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
