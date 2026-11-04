@@ -266,7 +266,24 @@ There are two tasks relevant to the activity system:
 
 Both tasks run at priority 1. Since the ESP32-C3 is single-core, they alternate execution: the main task runs `loop()`, then at the end of the loop iteration, notifies the render task if an update was requested. The render task wakes, acquires the mutex, calls `render()`, releases the mutex, and blocks again.
 
-Do not use `xTaskCreate` inside activities. If you have a use case that seems to require a background task, open a discussion to propose a lifecycle-aware `Worker` abstraction first.
+Do not use `xTaskCreate` inside activities. Background work must be owned by
+an application-lifetime service, not by the Activity. The service owns copied
+request data, cancellation/result state, and the worker task; the worker must
+never retain an Activity pointer, render, or acquire RenderLock.
+
+A worker-backed activity needs a nonblocking pre-exit readiness gate. The
+ActivityManager checks it before taking RenderLock for Pop/Replace/
+ReplaceForSleep. If the service is still cancelling or cleaning up, the manager
+keeps the pending transition and returns to the main loop. The activity remains
+alive and responsive until the service reports idle. `onExit()` must not block,
+join, or forcibly delete an active worker.
+
+`prepareForSleep()` is called under RenderLock, so it may only request
+cancellation. The main sleep path waits for the worker and service-owned Wi-Fi
+cleanup after releasing RenderLock and before starting any sleep/plugin-event
+network delivery. The worker publishes completion only after its HTTP/file/Wi-Fi
+RAII resources have unwound, then self-deletes; the application service clears
+the task handle after observing completion. Keep HTTP single-flight.
 
 ### The Render Mutex and RenderLock
 
