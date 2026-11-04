@@ -81,19 +81,16 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Current milestone
 
-**Reader trigger + context preview — SOURCE IMPLEMENTED; BUILD PASSED; device test pending (2026-11-04).**
+**Reader trigger + context preview — DEVICE TEST PASS (2026-11-04); temporary preview UI intentionally out of scope.**
 
-- New branch: `feat/x4-reader-screensaver-transition`.
+- Branch: `feat/x4-reader-screensaver-transition`; implementation source commit: `3360e939950fbf5d35022a085ec213628b7ec287`.
 - Appended persisted setting `AI_SCREENSAVER=10`; values 0–9 remain unchanged. The option appears in the no-touch short-power setting list.
-- The X4 short-power release path now captures current-page text plus book title/author and replaces the reader with CrossPoint's existing `DetailsActivity` as a temporary context-preview screen.
-- The preview is intentionally a test harness, not the final screensaver UI. No network request, image generation, worker, or sleep transition is included.
-- The existing reader replacement lifecycle is relied upon: `replaceActivity()` defers until the reader loop returns, then calls reader `onExit()`/destruction before the preview's `onEnter()`.
-- English translation keys are added in `lib/I18n/translations/english.yaml`; PlatformIO's existing pre-build script generates the i18n C++ files.
-- **Build PASSED:** manual X4 workflow run `41773580611` on commit `3360e939950fbf5d35022a085ec213628b7ec287`; exact CrossPoint 2.0.0 source and SDK pin checks passed; PlatformIO build and artifact upload passed.
-- Artifact `crosspoint-2.0.0-x4-local-get-test`, ID `13296835671`, ZIP size 3,645,865 bytes; ZIP SHA-256 `4235fc8e59a8b23549890eed9da5715a90f95f3b107e9cbfc17d8d4284f748f0`.
-- Extracted `firmware.bin`: 5,591,680 bytes; identified as ESP32-C3 application image, project `crosspoint-reader`, version `3360e939`; binary SHA-256 `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`.
-- Build reports RAM 20.4% (66,712 / 327,680 bytes) and Flash 85.1% (5,577,161 / 6,553,600 bytes). Build and artifact-upload steps both succeeded.
-- **Device status: NOT TESTED.** Do not treat successful compilation as device validation. Next: user sideloads this verified artifact only when ready; verify settings selection, short-power trigger, book metadata/page text, and Back behavior. Existing installed firmware remains unchanged until that test.
+- The X4 short-power release path captures current-page text plus book title/author and replaces the reader with CrossPoint's existing `DetailsActivity` as a temporary context-preview screen.
+- **Build PASS:** manual X4 workflow run `41773580611`; exact CrossPoint 2.0.0 source and SDK pin checks, PlatformIO build, and artifact upload all passed. Artifact ID `13296867371`; firmware SHA-256 `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`. RAM 20.4%; Flash 85.1%.
+- **Device test PASS:** user sideloaded the built firmware onto the original X4. Short press in the system menu did nothing (expected); short press in the EPUB reader opened the preview. The preview displayed the correct book title and author and captured current-page text.
+- **Scope note:** the preview uses generic `DetailsActivity` controls, including on-screen button affordances and duplicated physical Back hints. This is test-harness UI only, not customer-facing behavior; do not polish it. The final screensaver activity will own its UI/input presentation.
+- Reader trigger, activity handoff, metadata capture, and current-page text capture are device-validated. No networking, image generation, worker, or sleep transition is included yet.
+- **Next:** proceed to the next planned design slice: resolve the lifecycle-safe worker/network cancellation contract before implementing background generation. No additional build is needed for this documentation update.
 
 ## Subsequent milestone
 
