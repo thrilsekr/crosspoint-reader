@@ -48,7 +48,7 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - ZIP contains `firmware.bin`, 5,590,784 bytes; SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
 - This binary is built from code commit `98811e06`; installation and successful device test are confirmed in the current milestone below.
 
-## Current milestone
+## Completed milestone
 
 **Milestone: local networking + BMP download/save/open diagnostic — DONE (2026-11-02).**
 
