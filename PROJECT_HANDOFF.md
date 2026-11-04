@@ -77,7 +77,7 @@ Implement the service, ActivityManager pre-exit gate, sleep drain wait, and atom
 
 - The X4 diagnostic workflow `.github/workflows/x4-baseline-build.yml` is `workflow_dispatch` only; merging PR #1 did not launch an X4 build.
 - The separate `CI (build)` workflow was triggered by a direct push to `develop`. Run `41885073421` attempted all eight board builds (all succeeded), but the `cppcheck` job failed during setup because Ubuntu 26.04 could not locate `libpcre3`; the required `Test Status` job consequently failed.
-- This PR updates the project branch CI policy to run on PRs, skip heavy checks for docs/workflow-only changes, and build only the X4 `default` environment. PR firmware links will list only the X4 artifact.
+- Target CI policy: PR-only, skip heavy checks for docs/workflow-only changes, and build only the X4 `default` environment. The workflow files have not yet been changed. The current `ci.yml` still triggers on pushes to `develop` and all PRs, and still lists eight board environments. Hold the documentation PR until this workflow is updated, so it does not trigger an unnecessary eight-board run.
 - No worker code, firmware build, or device test has been performed for this milestone.
 
 ## Confirmed CrossPoint 2.0.0 findings
