@@ -1,0 +1,78 @@
+name: X4 local GET diagnostic build
+
+on:
+  workflow_dispatch:
+
+# Prevent overlapping diagnostic builds from consuming unnecessary runner time.
+concurrency:
+  group: x4-diagnostic-build
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-x4:
+    name: Build CrossPoint 2.0.0 X4 baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pinned source and SDK
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify source and SDK pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=42d58daaabcf469a2e5e1ba871714fb9dcf51d29
+          test "$(git merge-base HEAD "$BASE")" = "$BASE"
+          test "$(git -C freeink-sdk rev-parse HEAD)" = "5e94fe7480f019c89fbf691aef87523eb1b46704"
+          grep -Eq '^version[[:space:]]*=[[:space:]]*2\.0\.0$' platformio.ini
+          echo "CrossPoint 2.0.0 source and exact FreeInk SDK pin verified."
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: false
+
+      - name: Install pinned PlatformIO Core and runtime dependencies
+        run: |
+          uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+          uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
+            "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
+            "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
+            "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: x4-baseline-${{ runner.os }}-${{ hashFiles('platformio.ini', 'scripts/patch_pioarduino_cache.py') }}
+          restore-keys: x4-baseline-${{ runner.os }}-
+
+      - name: Pin PlatformIO Core in the platform virtual environment
+        run: |
+          set -euo pipefail
+          pio pkg install -e default
+          uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
+          ~/.platformio/penv/bin/pio --version
+
+      - name: Build X4 firmware
+        run: |
+          set -euo pipefail
+          pio run -e default | tee pio.log
+
+      - name: Upload baseline firmware artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: crosspoint-2.0.0-x4-local-get-test
+          path: .pio/build/default/firmware.bin
+          if-no-files-found: error
