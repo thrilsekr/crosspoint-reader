@@ -100,8 +100,23 @@ Local file lifetime follows the [HAL contract](architecture-hal.md#file-handle-l
 render tasks. Worker stacks are sized in bytes, using call chains and measured
 `uxTaskGetStackHighWaterMark()`. Check the existing render stack and
 `SET_LOOP_TASK_STACK_SIZE` rather than copying example sizes.
-Workers require shared-state synchronization and `vTaskDelete()` in `onExit()`
-before activity destruction.
+Activities must not create or own FreeRTOS worker tasks. Long-running work belongs to
+an application-lifetime service that owns its task, copied request input,
+synchronized status/result, and cancellation token. The worker must never retain
+an Activity pointer or call UI/render APIs.
+
+For worker-backed activities, ActivityManager must defer Pop/Replace/
+ReplaceForSleep until a nonblocking pre-exit hook reports the service fully idle.
+Run that hook outside RenderLock. `prepareForSleep()` runs under RenderLock and
+may only request cancellation; the main sleep path waits for worker completion
+and Wi-Fi cleanup after releasing the lock and before plugin-event network
+delivery. `onExit()` must not join, block, or forcibly delete an active task.
+The worker unwinds HTTP/file/Wi-Fi RAII, publishes completion, then self-deletes;
+the application service clears its task handle after observing completion.
+
+Keep HTTP single-flight. The main task owns Wi-Fi mode/connect/disconnect; the
+worker uses an established connection only. Use Storage/HalFile for SD access.
+Size worker stacks from the actual call chain and measured high-water mark.
 
 Network flows release WiFi and power locks when they end. Trace the existing
 `HalPowerManager` low-power protocol before changing network, sleep, or logging.
