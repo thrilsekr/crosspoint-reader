@@ -45,20 +45,22 @@ This file records decisions that should not be reopened without new evidence or 
 - AI activity owns display rendering.
 - Network code must not draw to the display.
 - Capture page text once and retain an owned copy.
-- Do not create an ad-hoc FreeRTOS task inside an activity. The pinned source contains conflicting worker guidance: `docs/activity-manager.md` says not to call `xTaskCreate` in activities and to propose a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the inspected firmware/SDK tree. Resolve this conflict and define an explicit lifecycle/cancellation contract before implementation.
+- Do not create or own a FreeRTOS worker task inside an Activity. Use the settled application-lifetime service and pre-exit/sleep cancellation contract above; do not block or forcibly delete a worker from `onExit()`. No reusable general-purpose Worker implementation exists in the inspected firmware/SDK tree.
 - Use existing activity stack and render-lock mechanisms.
 - Network polling and transition to deep sleep must be validated.
 
-## Proposed Worker contract (design direction, not yet a settled implementation decision)
+## Worker lifecycle contract (SETTLED design; implementation pending)
 
-- Use a small activity-owned `ActivityWorker` wrapper that encapsulates FreeRTOS task creation; activity code must not create a raw task directly.
-- Worker receives independently owned request input and owns progress/result storage. It must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
-- One worker/request at a time. Activity `loop()` remains responsive and consumes synchronized progress/results.
-- Cancellation is cooperative and synchronized. HTTP code must poll the cancellation token and unwind normally so C++/HTTP/file/Wi-Fi RAII cleanup runs.
-- `prepareForSleep()` requests cancellation and waits for the HTTP operation to finish before sleep plugin delivery. The worker must not need `RenderLock`; this hook is called while that lock is held.
-- `onExit()` performs idempotent stop/reap before activity destruction. `vTaskDelete` may only reap a task after its operation has returned and resources have unwound; never use it to interrupt active network code.
-- Startup failure, normal completion, cancellation, timeout, and task cleanup all need explicit states. A bounded wait is required, but current plain-HTTP connect/DNS behavior prevents claiming one until addressed.
-- The repository's two worker instructions conflict; this contract is a proposal to reconcile them, not yet a firmware decision.
+- Use an application-lifetime `AiScreensaverService`, not an activity-owned task. It owns copied request input, the worker task, cancellation token, synchronized result/progress, and task handle. The worker never retains an Activity pointer, calls Activity methods, renders, or acquires `RenderLock`.
+- The service coordinates Wi-Fi; only the main Arduino task changes Wi-Fi mode, connects, and disconnects. Reuse an already-connected STA. If Wi-Fi is off, load/copy saved credentials and connect as STA. If another Wi-Fi mode is active but no STA connection exists, do not commandeer it. Disconnect/turn off Wi-Fi only if the service established the connection.
+- One request at a time. `HttpDownloader` is not thread-safe. Do not start sleep/plugin-event network delivery until the worker and service cleanup are complete.
+- Use cooperative cancellation with a synchronized atomic token. The worker unwinds HTTP, stream/file, and `WifiPowerSaveGuard` resources before publishing completion, then self-deletes. The main-task service observes completion and clears the handle. Never use `vTaskDelete()` to interrupt an active request.
+- Add a nonblocking pre-exit gate to the Activity/ActivityManager lifecycle. For Pop/Replace/ReplaceForSleep, ActivityManager asks the outgoing activity whether it is ready to exit before acquiring `RenderLock`. The AI activity requests cancellation and returns not-ready until the worker and Wi-Fi cleanup are complete; the manager retains the pending action and retries on a later loop. The activity continues running while cancellation completes.
+- `onExit()` runs under `RenderLock`; it must not block, join, or delete the worker. It only releases activity-local resources after the pre-exit gate has confirmed service idle.
+- `prepareForSleep()` also runs under `RenderLock` and only requests cancellation. The main sleep path waits outside the lock for full service completion and Wi-Fi cleanup before plugin-event delivery.
+- Preserve `WifiPowerSaveGuard`. Worker file access must use `Storage`/`HalFile`, never direct SdFat or a concurrently shared `HalFile`.
+- The initial Back/exit latency target is about five seconds. This is a per-socket/connect timeout target, not a strict total-operation deadline. If cleanup exceeds it, defer the transition until the worker really finishes. Reducing this delay is a future optimization.
+- Determine task priority and stack size during implementation from the real call chain and measured X4 stack high-water mark. Do not copy example sizes. If another independent background HTTP client is introduced, add a shared network arbiter rather than assuming `HttpDownloader` supports concurrency.
 
 ## Networking and worker cancellation
 
@@ -68,6 +70,8 @@ This file records decisions that should not be reopened without new evidence or 
 - Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
 - The secure GET/download path passes a cancellation callback into the pinned SDK's resumable fetch implementation. This is useful but does not prove prompt, thread-safe cancellation across every connection stage.
 - HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
+- The pinned SDK exposes `SecureHttpClient::setTimeout(uint32_t)`; its plain-HTTP path applies this to socket and connection timeout. The project pins pioarduino platform `55.03.311`, which packages Arduino Core `3.3.11`; `NetworkManager::hostByName()` parses IP literals with `IPAddress.fromString()` before DNS. A local IPv4 literal therefore avoids DNS.
+- Keep the existing 60-second default for unrelated callers. Add a per-request override of 5,000 ms for the first local HTTP request. This is a per-operation timeout, not a strict total request deadline. The SDK polls the abort callback while reading response headers/body; plain-HTTP TCP connect itself does not poll cancellation, so the connection timeout bounds that stage.
 - Pinned SDK cancellation limitation (verified against SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`): both HTTPS and plain HTTP have uncancellable DNS/TCP setup. HTTPS passes the abort callback into `SecureClient`, but `SecureClient::connect()` checks it before `hostResolves()` / `Network.hostByName()`, then checks again after TCP connect; it polls during TLS handshake. Plain HTTP calls `hostResolves()` and `WiFiClient::connect()` without an abort callback. The DNS API exposes no caller-supplied timeout/abort argument. TCP connection timeout currently inherits the 60-second HTTP timeout. Do not promise bounded cancellation until addressed.
 - `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
 - `HalStorage` serializes SD operations with a recursive mutex and wraps `HalFile` read/write/close calls. The HAL source explicitly notes SdFat itself is not thread-safe. Background file access must use `Storage`/`HalFile`, not direct SdFat; do not share a `HalFile` instance concurrently.
@@ -89,6 +93,13 @@ This file records decisions that should not be reopened without new evidence or 
 - Do not archive/replace the current image until the incoming image has downloaded and validated.
 - For same book, retain the existing generated image while waiting; for another book, show that book's cover until a new image arrives.
 - Timeout target is five minutes; fallback should remain cover art, not an unrelated previous image.
+
+## CI and build policy
+
+- The project branch CI workflow runs on pull requests, not direct pushes. A changed-file gate skips heavy checks for documentation/workflow-only changes.
+- Firmware builds are X4-only via the `default` environment. Do not expand the matrix to the other seven board environments until the project explicitly expands device scope.
+- PR firmware-artifact comments expose only the X4 artifact. The separate X4 diagnostic build remains manual (`workflow_dispatch`) and is not triggered by PR merges.
+- Use PRs for repository changes; do not push project work directly to `develop`.
 
 ## Diagnostic workflow
 
@@ -117,9 +128,9 @@ This file records decisions that should not be reopened without new evidence or 
 - User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
 
 
-## Worker design investigation correction (2026-11-02)
+## Worker implementation notes
 
-- `std::atomic` is available at the configured `gnu++2a` language level (`platformio.ini`); target build/use remains untested. A FreeRTOS event/semaphore primitive is an alternative.
-- Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
-- Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
-- The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.
+- `std::atomic` is available at the configured `gnu++2a` language level; target-build use remains untested.
+- `HttpDownloader::downloadToFile()` and `postToFile()` currently accept `const bool*`, which is not a safe cross-task cancellation contract. `fetchUrl()` and `postForm()` currently expose no cancellation parameter. Add a synchronized cancellation path for the first GET; extend other methods only when required.
+- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode for the duration of a request. Keep the worker single-flight and finish its cleanup before the main task changes Wi-Fi mode or starts another HTTP operation.
+- No code, build, or device test has been performed for the worker contract.
