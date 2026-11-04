@@ -1,6 +1,6 @@
 # Xteink X4 AI Screensaver Project Handoff
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 ## Mission
 
@@ -38,7 +38,9 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - Working branch: `feat/x4-reader-screensaver-transition` (branched from `ai-screensaver/2.0.0-baseline` at `23be366a9b5bac3d125b93901b5a884c3b6a2f0b`)
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
-- Latest firmware/source diagnostic commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
+- Latest confirmed reader/context-preview source commit: `3360e939950fbf5d35022a085ec213628b7ec287`.
+- Latest successful X4 reader/context-preview build: workflow run `41773580611`, job `126388673607`, completed 2026-11-04 04:43 UTC.
+- Artifact ID `13296835671`, `crosspoint-2.0.0-x4-local-get-test`; extracted `firmware.bin` 5,591,680 bytes; SHA-256 `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`.
 - Latest branch HEAD at 2026-11-02 record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (documentation/workflow-only changes after the diagnostic firmware commit).
 - Project records are versioned on the same branch; verify the live branch HEAD when resuming.
 - Latest commit message: “Keep cumulative results in local X4 diagnostic”.
@@ -79,7 +81,7 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Current milestone
 
-**Reader trigger + context preview — SOURCE IMPLEMENTED; build/device test pending (2026-11-03).**
+**Reader trigger + context preview — SOURCE IMPLEMENTED; BUILD PASSED; device test pending (2026-11-04).**
 
 - New branch: `feat/x4-reader-screensaver-transition`.
 - Appended persisted setting `AI_SCREENSAVER=10`; values 0–9 remain unchanged. The option appears in the no-touch short-power setting list.
@@ -87,7 +89,11 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - The preview is intentionally a test harness, not the final screensaver UI. No network request, image generation, worker, or sleep transition is included.
 - The existing reader replacement lifecycle is relied upon: `replaceActivity()` defers until the reader loop returns, then calls reader `onExit()`/destruction before the preview's `onEnter()`.
 - English translation keys are added in `lib/I18n/translations/english.yaml`; PlatformIO's existing pre-build script generates the i18n C++ files.
-- **Not yet built or device-tested.** GitHub Actions workflow is manual-only. The available GitHub connection has no workflow-dispatch action; a manual X4 workflow run is required before device sideload testing.
+- **Build PASSED:** manual X4 workflow run `41773580611` on commit `3360e939950fbf5d35022a085ec213628b7ec287`; exact CrossPoint 2.0.0 source and SDK pin checks passed; PlatformIO build and artifact upload passed.
+- Artifact `crosspoint-2.0.0-x4-local-get-test`, ID `13296835671`, ZIP size 3,645,865 bytes; ZIP SHA-256 `4235fc8e59a8b23549890eed9da5715a90f95f3b107e9cbfc17d8d4284f748f0`.
+- Extracted `firmware.bin`: 5,591,680 bytes; identified as ESP32-C3 application image, project `crosspoint-reader`, version `3360e939`; binary SHA-256 `b76e31f9293d7d05fa83ae948dd76736ec1be39bea19e22a55a4b4b946dd1e5b`.
+- Build reports RAM 20.4% (66,712 / 327,680 bytes) and Flash 85.1% (5,577,161 / 6,553,600 bytes). Build and artifact-upload steps both succeeded.
+- **Device status: NOT TESTED.** Do not treat successful compilation as device validation. Next: user sideloads this verified artifact only when ready; verify settings selection, short-power trigger, book metadata/page text, and Back behavior. Existing installed firmware remains unchanged until that test.
 
 ## Subsequent milestone
 
