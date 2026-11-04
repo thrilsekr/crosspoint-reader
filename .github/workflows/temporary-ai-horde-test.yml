@@ -120,13 +120,13 @@ jobs:
                   "sampler_name": "k_euler",
                   "n": 1,
                   "seed": "-1",
-                  "models": models,
                   "karras": False,
                   "hires_fix": False,
                   "clip_skip": 1
               },
               "nsfw": False,
               "censor_nsfw": True,
+              "models": models,
               "shared": False,
               "r2": False,
               "replacement_filter": True
