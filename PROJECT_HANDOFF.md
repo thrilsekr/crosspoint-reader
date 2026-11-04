@@ -1,6 +1,6 @@
 # Xteink X4 AI Screensaver Project Handoff
 
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 ## Mission
 
@@ -39,7 +39,7 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
 - Latest firmware/source diagnostic commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
-- Latest branch HEAD at 2026-11-02 record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (documentation/workflow-only changes after the diagnostic firmware commit).
+- Baseline branch HEAD before this documentation PR: `23be366a9b5bac3d125b93901b5a884c3b6a2f0b` (2026-11-03, “Record worker cancellation source investigation”).
 - Project records are versioned on the same branch; verify the live branch HEAD when resuming.
 - Latest commit message: “Keep cumulative results in local X4 diagnostic”.
 - Latest recorded GitHub Actions check: run/job `125165358875`, completed successfully at 2026-11-02 08:19:28 UTC.
@@ -50,44 +50,35 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 
 ## Current milestone
 
-**Milestone: local networking + BMP download/save/open diagnostic — DONE (2026-11-02).**
+**Milestone: worker lifecycle and network-cancellation design — SETTLED (2026-11-04; implementation not started).**
 
-### Confirmed device results
+### Settled architecture
 
-Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8a2fb409f0` was installed and tested on the original X4.
+- An application-lifetime `AiScreensaverService` owns the worker task, copied request input, cancellation state, synchronized result/progress, and task handle. The worker never stores or calls an Activity, renders, or acquires `RenderLock`.
+- The service coordinates Wi-Fi, but the Arduino/main task performs Wi-Fi mode changes, connection setup, and cleanup. Reuse an already-connected station. If Wi-Fi is off, load and copy the existing saved credentials and connect as STA. Do not commandeer an active, non-connected Wi-Fi mode. Disconnect/turn off Wi-Fi only when this service started it.
+- One HTTP request at a time. `HttpDownloader` is explicitly not thread-safe. Sleep-event network delivery must wait until the service is fully idle.
+- Cancellation is cooperative and synchronized with an atomic token. The worker unwinds HTTP, stream/file, and `WifiPowerSaveGuard` resources before publishing completion, then self-deletes. The main-task service observes completion and clears the task handle. Never forcibly delete an active worker.
+- Ordinary exit uses a nonblocking pre-exit gate in `ActivityManager`, called before acquiring `RenderLock` for Pop/Replace/ReplaceForSleep. The outgoing activity requests cancellation and reports not-ready until the worker and Wi-Fi cleanup are complete; the pending transition remains queued while the activity continues to run. `onExit()` only releases activity-local resources and never joins or blocks.
+- Sleep's `prepareForSleep()` hook runs under `RenderLock` and only requests cancellation. The main task waits for service completion outside the lock and before plugin-event network delivery. Service-owned Wi-Fi is cleaned up before the event drain.
+- Retain `WifiPowerSaveGuard`. Cross-task SD access must use `Storage`/`HalFile`, not direct SdFat.
 
-- Receiver accepted device connections and returned HTTP 200 for diagnostic GET/POST and BMP GET.
-- Sleep-event POST `/event`: JSON body received (235 bytes); HTTP 200.
-- Diagnostic GET `/event`: HTTP 200; X4 screen: **Get pass**.
-- Diagnostic POST `/event`: form body `test=x4-post-test` received (17 bytes); HTTP 200; X4 screen: **Post pass**.
-- GET `/test.bmp`: receiver sent 960,054 bytes; HTTP 200; X4 screen: **Get test.bmp Pass**.
-- X4 file status: **Bmp file: SAVED**.
-- User opened `x4-download-test.bmp` on the X4; it processed and opened successfully.
-- The diagnostic fixture was landscape. This was a transport/render test only; generated screensaver imagery should be portrait-oriented.
-- Receiver endpoint was local-only on port 8765. User's private LAN details are not part of project records.
+### Cancellation and timing
 
-### Build/artifact used
+- Add a per-request timeout override; leave the existing 60-second default unchanged for other firmware callers.
+- Initial local HTTP request target: 5,000 ms per socket/connect operation, using an IPv4 literal. The pinned platform is 55.03.311 / Arduino Core 3.3.11; `NetworkManager::hostByName()` parses an IP literal with `IPAddress.fromString()` before attempting DNS. The pinned SDK's `SecureHttpClient::setTimeout()` applies to plain-HTTP connection and socket operations; HTTP read loops poll the abort callback.
+- Five seconds is an initial transport/exit-latency target, not a strict total-request deadline. If cleanup takes longer, keep the transition deferred until the worker is actually finished; never kill it to meet the target. Reducing perceived Back/exit delay is a future optimization.
+- Worker task priority/stack size remain implementation measurements: size from the real call chain and X4 stack high-water mark, not copied examples. Any future independent background HTTP client must join a shared network-serialization mechanism.
 
-- Firmware source commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0` (“Keep cumulative results in local X4 diagnostic”).
-- Workflow run: `41411501888`; job/check: `125165358875`; result: success.
-- Artifact ID: `13125857099`; ZIP: `x4-cumulative-diagnostic.zip`.
-- Binary: `firmware.bin`, 5,590,784 bytes.
-- SHA-256: `df2b6cd68872c87635c055c4289b080b9dceef1ecbb07ec28dd451f0bc87bb1f`.
-- Branch HEAD at record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (“Make X4 diagnostic builds manual-only”).
-- Workflow is `workflow_dispatch` only, X4-only; documentation commits/pushes do not trigger builds.
-- No firmware rebuild is needed for this documentation update.
+### Next engineering action
 
-### Next milestone
+Implement the service, ActivityManager pre-exit gate, sleep drain wait, and atomic cancellable GET with a per-request timeout. Keep the first implementation to one local GET. Then build only the X4 when the code is ready for meaningful device validation. Device checks will cover Back cancellation, sleep cancellation before event drain, Wi-Fi reuse/cleanup, and no overlapping requests.
 
-**Worker/lifecycle investigation — architecture direction identified; cancellation and policy details remain open.**
+### GitHub Actions finding (2026-11-04)
 
-1. Proposed minimal abstraction: an activity-owned `ActivityWorker` wrapper that encapsulates task creation; the activity must not call raw `xTaskCreate`. Worker receives copied inputs, owns its result/progress state, and never retains or calls the Activity.
-2. Worker performs one synchronous HTTP operation at a time. Activity `loop()` remains responsive and reads synchronized progress/results. Worker never renders or acquires `RenderLock`.
-3. `prepareForSleep()` requests cooperative cancellation and waits for the HTTP operation to unwind before sleep-event delivery. The worker must not require `RenderLock`; `onExit()` performs idempotent final stop/reap before destruction. `vTaskDelete` may reap only a completed/parked task, never interrupt an active HTTP call.
-4. Resolve thread-safe cancellation and bounded plain-HTTP connection cancellation. Existing cancellation accepts `const bool*`; `fetchUrl()` and `postForm()` lack cancellation; the pinned SDK's plain HTTP DNS/connect path does not poll the abort callback and uses a 60-second connection timeout.
-5. Confirm Wi-Fi ownership and use only `HalStorage`/`HalFile` for cross-task file work. HAL serializes individual SD operations; direct SdFat use is not thread-safe.
-6. Resolve conflicting repository worker guidance (`docs/activity-manager.md` versus `.agents/rules/ui-activities.md`) into an explicit contract before implementation.
-7. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+- The X4 diagnostic workflow `.github/workflows/x4-baseline-build.yml` is `workflow_dispatch` only; merging PR #1 did not launch an X4 build.
+- The separate `CI (build)` workflow was triggered by a direct push to `develop`. Run `41885073421` attempted all eight board builds (all succeeded), but the `cppcheck` job failed during setup because Ubuntu 26.04 could not locate `libpcre3`; the required `Test Status` job consequently failed.
+- This PR updates the project branch CI policy to run on PRs, skip heavy checks for docs/workflow-only changes, and build only the X4 `default` environment. PR firmware links will list only the X4 artifact.
+- No worker code, firmware build, or device test has been performed for this milestone.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
