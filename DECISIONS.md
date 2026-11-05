@@ -70,16 +70,16 @@ This resolves the conflicting repository guidance: cooperative cancellation and 
 - Caller establishes Wi-Fi; `HttpDownloader` does not connect.
 - Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
 - Do not run concurrent HTTP requests. `HttpDownloader` explicitly documents itself as not thread-safe and permits one fetch at a time.
-- Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
-- The secure GET/download path passes an abort callback into the pinned SDK's resumable fetch implementation. The worker will use the atomic cancellation overloads added for GET, POST, and download; legacy bool-pointer APIs remain for existing single-task callers.
-- HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
-- Pinned SDK cancellation limitation (verified against SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`): both HTTPS and plain HTTP have uncancellable DNS/TCP setup. HTTPS passes the abort callback into `SecureClient`, but `SecureClient::connect()` checks it before `hostResolves()` / `Network.hostByName()`, then checks again after TCP connect; it polls during TLS handshake. Plain HTTP calls `hostResolves()` and `WiFiClient::connect()` without an abort callback. The DNS API exposes no caller-supplied timeout/abort argument. TCP connection timeout currently inherits the 60-second HTTP timeout. Do not promise bounded cancellation until addressed.
+- Legacy `downloadToFile()` and `postToFile()` retain their `const bool*` overloads for existing single-task callers. Worker-safe overloads now accept `const std::atomic<bool>&` for streaming GET, form POST, staged file GET, and staged file POST. Do not share an ordinary `bool` unsynchronized between tasks.
+- Atomic GET/download overloads pass an acquire-load cancellation callback into the SDK's resumable fetch implementation. Atomic POST overloads pass the same callback into `SecureHttpClient::sendRequest()`. Legacy bool-pointer APIs remain source-compatible.
+- HTTP response/socket-operation timeout remains 60 seconds. Worker-safe overloads additionally use a 2-second TCP connection timeout; the SDK restores the 60-second socket I/O timeout immediately after TCP connect. Response loops poll the atomic abort callback between nonblocking reads. This is not a total request deadline.
+- Pinned SDK patch is repository-owned and applied at build time to exact submodule SHA `5e94fe7480f019c89fbf691aef87523eb1b46704`; the submodule pointer is not changed. The patch adds a separate connect timeout to `SecureClient` and `SecureHttpClient`, and an option to disable redirects in resumable GET. Worker-safe `HttpDownloader` overloads require an IPv4-literal URL and disable redirects, so they bypass the pinned platform's synchronous DNS path. The patch restores the 60-second socket timeout after the 2-second TCP connect. Build verification is still pending.
 - `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
 - `HalStorage` serializes SD operations with a recursive mutex and wraps `HalFile` read/write/close calls. The HAL source explicitly notes SdFat itself is not thread-safe. Background file access must use `Storage`/`HalFile`, not direct SdFat; do not share a `HalFile` instance concurrently.
 - `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Keep HTTP single-flight and ensure the worker has fully unwound before sleep-event delivery or Wi-Fi shutdown. `HalPowerManager::Lock` currently supports only one lock at a time.
 - `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock` and is called before sleep plugin event delivery. Worker cancellation/completion must not need `RenderLock`, must finish before sleep-event network delivery, and must have a bounded wait.
 - `onExit()` is also a required stop-and-wait fallback for non-sleep activity transitions. Do not forcibly delete a task while its network call or C++ resource cleanup is active.
-- The exact worker creation/priority/stack/cleanup policy remains unresolved because repository guidance conflicts; resolve it before implementation.
+- Worker lifecycle guidance is settled in `PROJECT_HANDOFF.md`: cooperative atomic cancellation, completion only after RAII cleanup, then reap; never delete an active task. Implementation of the worker wrapper remains out of scope for this network-foundation milestone.
 - Respect `downloadToFile()` staging behavior (`.part`, replace on success, remove partial on failure).
 - Keep service local-only where practical; no public exposure of the local receiver.
 
@@ -139,3 +139,10 @@ This resolves the conflicting repository guidance: cooperative cancellation and 
 - Missing/invalid per-book image falls back to the normal generated book cover. Global `/sleep.bmp` precedence remains unchanged.
 - Move the per-book directory when the existing EPUB cache identity is moved. Cache clearing must not remove AI screensaver images.
 - Current implementation slice covers reflowable books; XTC-specific identity remains out of scope until separately designed.
+
+
+## Worker network foundation implementation (2026-11-05; build pending)
+
+- Added `scripts/patch_sdk_worker_connect_timeout.py`, which refuses any SDK SHA other than the exact pinned revision and patches the submodule only in the Actions build workspace. The patch adds a separate 2,000 ms TCP connection budget for `SecureClient` and `SecureHttpClient`, then restores the existing 60,000 ms socket I/O timeout after successful TCP connect. A resumable-fetch option disables redirects for worker GETs.
+- Added atomic-token overloads to `HttpDownloader` for streaming GET, form POST, staged file GET, and staged file POST. They use `memory_order_acquire`, require IPv4-literal URLs, reject redirects, and apply the 2,000 ms connect timeout. Legacy APIs and their behavior remain intact.
+- The X4 manual Actions workflow syntax-checks and applies the SDK patch before building. The SDK gitlink remains unchanged. Source/build verification and device tests are pending.
