@@ -1046,8 +1046,7 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   // The diagnostic download is used only for reader-originated Cover+Custom
   // sleep. System-menu sleep still renders the user's configured custom screen.
-  if (APP_STATE.lastSleepFromReader &&
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER_CUSTOM) {
+  if (APP_STATE.lastSleepFromReader && SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER_CUSTOM) {
     constexpr char AI_COVER_TEST_PATH[] = "/x4-download-test.bmp";
     HalFile aiFile;
     if (Storage.openFileForRead("SLP", AI_COVER_TEST_PATH, aiFile)) {
