@@ -127,7 +127,9 @@ void LocalGetTestActivity::prepareForSleep() { aiScreensaverService.requestCance
 
 bool LocalGetTestActivity::prepareToExit() {
   aiScreensaverService.requestCancel();
-  return aiScreensaverService.isIdle();
+  if (!aiScreensaverService.isIdle()) return false;
+  aiScreensaverService.releaseOwnedWifi();
+  return true;
 }
 
 void LocalGetTestActivity::render(RenderLock&&) {
