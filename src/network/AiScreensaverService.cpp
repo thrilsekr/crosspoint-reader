@@ -81,7 +81,10 @@ bool AiScreensaverService::startGet(const std::string& url) {
     return false;
   }
 
-  if (currentMode == WIFI_MODE_NULL) WiFi.mode(WIFI_STA);
+  if (currentMode == WIFI_MODE_NULL && !WiFi.mode(WIFI_STA)) {
+    finishOnMainTask(false, false, 0, "Could not enable Wi-Fi station mode");
+    return false;
+  }
   // An enabled but disconnected STA can be left behind after the Wi-Fi
   // selection screen. Re-issue begin() with the saved network instead of
   // failing immediately; the service owns this reconnect until cleanup.
