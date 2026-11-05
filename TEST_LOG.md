@@ -202,3 +202,11 @@ For each future test, record:
 - Updated finished-book move handling to rename the persistent AI directory alongside the existing EPUB cache directory.
 - **Build:** pending manual `X4 local GET diagnostic build`; no build result claimed.
 - **Device:** pending original X4 validation; no device result claimed.
+
+
+## 2026-11-05 — Worker lifecycle/cancellation contract investigation
+
+- Source verified: pinned SDK `5e94fe7480f019c89fbf691aef87523eb1b46704` calls `hostResolves()` before both HTTP and HTTPS connection setup. Platform pin `55.03.311` maps to Arduino-ESP32 3.3.11; its `NetworkManager::hostByName()` checks `IPAddress::fromString()` first and returns immediately for valid IP literals. Hostnames still use synchronous DNS without a caller abort/timeout API.
+- Source verified: TCP connection timeout currently inherits the 60-second HTTP timeout. TLS handshake and response reads have cooperative abort polling; TCP connect itself does not.
+- Decision recorded: worker URLs are IPv4 literals only; add a separate 2-second TCP connect timeout while retaining the 60-second response/handshake timeout. Cross-task cancellation uses an atomic token; worker shutdown is cooperative and tasks are reaped only after cleanup.
+- Repository worker guidance reconciled in commits `7974116`, `b6af84d`, `a1ce6f0`. No firmware source or SDK pin changed. No build or device test performed.
