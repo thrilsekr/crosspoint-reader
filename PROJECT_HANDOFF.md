@@ -266,3 +266,14 @@ When records disagree, prefer the newest verified repository/device evidence and
 - XTC books are not yet assigned AI-image storage; this slice covers EPUB/TXT/Markdown through the existing Epub cache identity.
 - **Not yet verified:** no build or device test has run for this change. The implementation has been pushed to `feat/x4-reader-screensaver-transition`; the manual X4 workflow must be run before handing over a test `.bin`.
 - **Next:** run `X4 local GET diagnostic build` on this branch, inspect the build result/artifact, then test the per-book save and sleep lookup on the original X4.
+
+
+## Current milestone: worker network foundation — BUILD PASS (2026-11-05)
+
+- Latest source commit: `25c6ccad1f3e0f82d271bd8243361467f5983841`.
+- Manual X4 workflow run #33: `42132139366`, success. Exact CrossPoint 2.0.0 source/SDK pin checks, Python patch validation/application, PlatformIO X4 compile/link, and artifact upload all passed.
+- Artifact ID `13464236915`, `crosspoint-2.0.0-x4-local-get-test`; uploaded ZIP SHA-256 `5fdf976bfd639224ffa1a5640c830540aa1120d3151e1b59e20af9a79cec3212`.
+- RAM 20.4%; Flash 85.2%.
+- Atomic-token HTTP overloads and pinned-SDK 2-second TCP-connect patch are now compile-verified. IPv4-literal-only and no-redirect restrictions apply to the worker-safe overloads; legacy APIs retain their behavior.
+- **Not device-tested:** build success does not prove runtime cancellation latency or sleep-transition behavior. No firmware was installed as part of this build.
+- **Next milestone:** implement the activity-owned lifecycle-aware worker, using owned request/result state, cooperative atomic cancellation, one HTTP operation at a time, and cleanup-before-completion/reap. Worker must not access Activity/UI/render lock. Sleep preparation must stop and wait without taking RenderLock; onExit must safely repeat/reap. Then build and review before any X4 sideload.
