@@ -1,6 +1,7 @@
 #include "HttpDownloader.h"
 
 #include <Arduino.h>
+#include <IPAddress.h>
 #include <Logging.h>
 #include <ResumableFetch.h>
 
