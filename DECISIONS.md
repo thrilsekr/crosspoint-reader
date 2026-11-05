@@ -63,51 +63,7 @@ This file records decisions that should not be reopened without new evidence or 
 - Initial local request timeout is 5,000 ms per socket/connect operation. This is not a strict total-operation deadline; Back/exit stays deferred until all cleanup completes. Reducing perceived exit delay is a future optimization.
 - The initial service accepts only local plain-HTTP URLs with an IPv4 literal host. This avoids the pinned SDK's synchronous DNS stage; no local IP or credentials are sent to external services.
 
-## Image and storage
-
-- Generated screensaver imagery must be portrait-oriented (preferred device presentation). Landscape diagnostic fixtures are acceptable for transport/renderer tests only; they do not change the generation preference.
-- 800×400 is a target, not a hard validation rule.
-- BMP validation is permissive: validate readable header/format and complete pixel data, not dimensions/orientation/aspect ratio.
-- Renderer supports zoom-to-fit.
-- Archive outside `.sleep`.
-- Intended generated image state tracks book identity/path/hash and image ID/checksum/timestamp.
-- Do not archive/replace the current image until the incoming image has downloaded and validated.
-- For same book, retain the existing generated image while waiting; for another book, show that book's cover until a new image arrives.
-- Timeout target is five minutes; fallback should remain cover art, not an unrelated previous image.
-
-## Diagnostic workflow
-
-- Local Windows receiver uses port 8765.
-- Diagnostic routes are strict: GET `/test.bmp`, GET/POST `/event`; unknown routes return 404.
-- Receiver should log connection acceptance, request line, headers, body, response, and disconnect/timeout phase.
-- Q should stop the receiver.
-- Diagnostic image download must use `/x4-download-test.bmp`, not `/sleep.bmp`, unless a later test explicitly changes scope.
-- Cumulative device diagnostic screen must retain outcomes from GET, POST, and BMP stages.
-- Do not claim a transport failure means no TCP connection; HTTP 0 means no HTTP response was obtained.
-
-## Collaboration
-
-- Keep explanations short and actionable.
-- Avoid repeating established context or asking the user to repeat completed tests.
-- Ask only essential questions.
-- Treat confirmed behavior, hypotheses, and untested ideas separately.
-- Validate each milestone before moving on.
-
-
-## Record format / maintenance policy
-- These records are primarily an assistant-operational memory store, not user documentation.
-- Optimize for retrieval precision, compactness, explicit state, and low ambiguity rather than polished prose.
-- Prefer concise structured fields, stable labels, exact identifiers, dates, and explicit status tags: CONFIRMED / HYPOTHESIS / UNTESTED / BLOCKED / DONE.
-- Avoid repeating the same facts across files; handoff stores current state, decisions stores durable constraints, test log stores chronological evidence.
-- User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
-
-
-## Worker design investigation correction (2026-11-02)
-
-- `std::atomic` is available at the configured `gnu++2a` language level (`platformio.ini`); target build/use remains untested. A FreeRTOS event/semaphore primitive is an alternative.
-- Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
-- Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
-- The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.## Networking and worker cancellation
+## Networking and worker cancellation
 
 - Use existing `HttpDownloader`; do not introduce another HTTP stack. It remains single-flight and not thread-safe.
 - `FetchOptions` now has a per-request `timeoutMs` (default 60,000 ms) and an optional pointer to a `std::atomic<bool>` cancellation token. The cancellable GET passes that token to the pinned SDK's `SecureHttpClient::GET` abort callback. Existing callers keep the 60-second default.
@@ -164,3 +120,41 @@ This file records decisions that should not be reopened without new evidence or 
 - Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
 - Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
 - The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.
+
+## Image and storage
+
+- Generated screensaver imagery must be portrait-oriented (preferred device presentation). Landscape diagnostic fixtures are acceptable for transport/renderer tests only; they do not change the generation preference.
+- 800×400 is a target, not a hard validation rule.
+- BMP validation is permissive: validate readable header/format and complete pixel data, not dimensions/orientation/aspect ratio.
+- Renderer supports zoom-to-fit.
+- Archive outside `.sleep`.
+- Intended generated image state tracks book identity/path/hash and image ID/checksum/timestamp.
+- Do not archive/replace the current image until the incoming image has downloaded and validated.
+- For same book, retain the existing generated image while waiting; for another book, show that book's cover until a new image arrives.
+- Timeout target is five minutes; fallback should remain cover art, not an unrelated previous image.
+
+## Diagnostic workflow
+
+- Local Windows receiver uses port 8765.
+- Diagnostic routes are strict: GET `/test.bmp`, GET/POST `/event`; unknown routes return 404.
+- Receiver should log connection acceptance, request line, headers, body, response, and disconnect/timeout phase.
+- Q should stop the receiver.
+- Diagnostic image download must use `/x4-download-test.bmp`, not `/sleep.bmp`, unless a later test explicitly changes scope.
+- Cumulative device diagnostic screen must retain outcomes from GET, POST, and BMP stages.
+- Do not claim a transport failure means no TCP connection; HTTP 0 means no HTTP response was obtained.
+
+## Collaboration
+
+- Keep explanations short and actionable.
+- Avoid repeating established context or asking the user to repeat completed tests.
+- Ask only essential questions.
+- Treat confirmed behavior, hypotheses, and untested ideas separately.
+- Validate each milestone before moving on.
+
+
+## Record format / maintenance policy
+- These records are primarily an assistant-operational memory store, not user documentation.
+- Optimize for retrieval precision, compactness, explicit state, and low ambiguity rather than polished prose.
+- Prefer concise structured fields, stable labels, exact identifiers, dates, and explicit status tags: CONFIRMED / HYPOTHESIS / UNTESTED / BLOCKED / DONE.
+- Avoid repeating the same facts across files; handoff stores current state, decisions stores durable constraints, test log stores chronological evidence.
+- User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
