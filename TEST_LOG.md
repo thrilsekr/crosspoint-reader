@@ -220,3 +220,16 @@ For each future test, record:
 - `HttpDownloader` adds atomic-token overloads for streaming GET, form POST, staged GET-to-file, and staged POST-to-file. Worker overloads require IPv4-literal URLs, reject redirects, use 2-second connect timeout, and retain 60-second response timeout. Existing bool-pointer APIs remain unchanged.
 - Workflow updated only to py-compile and apply the SDK patch before the existing X4 build. Trigger remains manual `workflow_dispatch`.
 - **Verification status:** GitHub source edits committed; patch script and C++ changes have not yet run in CI. No build artifact or device test exists yet. Next required action is manually dispatching the X4 Actions workflow, then inspect its patch/build logs.
+
+
+## 2026-11-05 — Worker network foundation build — PASS (not device-tested)
+
+- Source commit: `25c6ccad1f3e0f82d271bd8243361467f5983841`.
+- Workflow run #33: `42132139366`; manual `workflow_dispatch`; completed successfully.
+- Exact CrossPoint 2.0.0 source and SDK pin checks passed. SDK patch script py_compile and application passed against pinned SDK `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+- PlatformIO X4 `default` environment compiled and linked successfully; `HttpDownloader.cpp` compiled. Firmware binary generated successfully.
+- Artifact: `crosspoint-2.0.0-x4-local-get-test`, artifact ID `13464236915`, 3,648,605-byte ZIP; SHA-256 of uploaded ZIP: `5fdf976bfd639224ffa1a5640c830540aa1120d3151e1b59e20af9a79cec3212`.
+- Build memory report: RAM 20.4%; Flash 85.2%.
+- **Result: BUILD PASS.** Confirms source/API integration and pinned-SDK patch compile. Does not prove runtime cancellation latency or device sleep behavior.
+- **Device: NOT TESTED.** No firmware installation requested or performed.
+- **Next:** implement the activity-owned lifecycle-aware worker using the now-built atomic HTTP APIs and bounded IPv4 TCP-connect path. Validate its lifecycle and stop/reap behavior before device testing.
