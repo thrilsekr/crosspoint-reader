@@ -1049,6 +1049,7 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   const bool originalThresholds = useOriginalCoverThresholds(renderer);
   std::string coverBmpPath;
+  std::string aiScreensaverDirectory;
   bool cropped = SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP;
 
   // Check if the current book is XTC, TXT, or EPUB
@@ -1081,15 +1082,15 @@ void SleepActivity::renderCoverSleepScreen() const {
     }
 
     coverBmpPath = lastEpub.getCoverBmpPath(cropped, originalThresholds);
+    aiScreensaverDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
   } else {
     return (this->*renderNoCoverSleepScreen)();
   }
 
   // Prefer this book's persistent AI image; the normal cover remains the fallback.
-  const std::string aiDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
-  if (!aiDirectory.empty()) {
+  if (!aiScreensaverDirectory.empty()) {
     HalFile aiFile;
-    const std::string aiPath = aiDirectory + "/current.bmp";
+    const std::string aiPath = aiScreensaverDirectory + "/current.bmp";
     if (Storage.openFileForRead("SLP", aiPath, aiFile)) {
       Bitmap aiBitmap(aiFile);
       if (aiBitmap.parseHeaders() == BmpReaderError::Ok) {
