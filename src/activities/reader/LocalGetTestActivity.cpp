@@ -1,10 +1,6 @@
 #include "LocalGetTestActivity.h"
 
 #include <GfxRenderer.h>
-#include <WiFi.h>
-
-#include <algorithm>
-
 #include "MappedInputManager.h"
 #include "network/AiScreensaverService.h"
 #include "fontIds.h"
@@ -114,7 +110,7 @@ void LocalGetTestActivity::loop() {
   if (state != State::RESULT) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (wifiCancelled || bmpAttempted) {
+    if (bmpAttempted) {
       finish();
     } else if (!postAttempted) {
       performPost();
@@ -138,7 +134,6 @@ void LocalGetTestActivity::render(RenderLock&&) {
 
   const int centerY = screen.y + screen.height / 2 - 50;
   const auto stageLine = [this](const char* label, const bool attempted, const bool succeeded, const int status) {
-    if (wifiCancelled) return std::string(label) + ": SKIPPED";
     if (!attempted) return std::string(label) + ": NOT RUN";
     return std::string(label) + (succeeded ? ": PASS HTTP " : ": FAIL HTTP ") + std::to_string(status);
   };
