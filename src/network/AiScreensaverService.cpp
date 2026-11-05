@@ -26,7 +26,12 @@ bool AiScreensaverService::isLocalIpv4HttpUrl(const std::string& url) {
 
   const std::string host = url.substr(hostStart, hostEnd - hostStart);
   IPAddress address;
-  return address.fromString(host.c_str());
+  if (!address.fromString(host.c_str())) return false;
+
+  const uint8_t first = address[0];
+  const uint8_t second = address[1];
+  return first == 10 || (first == 172 && second >= 16 && second <= 31) ||
+         (first == 192 && second == 168) || (first == 169 && second == 254);
 }
 
 bool AiScreensaverService::startGet(const std::string& url) {
@@ -149,6 +154,7 @@ void AiScreensaverService::workerMain() {
   options.statusOut = &httpStatus;
   options.timeoutMs = LOCAL_HTTP_TIMEOUT_MS;
   options.cancelFlag = &cancelRequested_;
+  options.followRedirects = false;
 
   const bool success = HttpDownloader::fetchUrl(requestUrl_, [](const uint8_t*, size_t) { return true; }, options);
 
