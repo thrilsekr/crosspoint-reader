@@ -255,3 +255,14 @@ When records disagree, prefer the newest verified repository/device evidence and
 - **CONFIRMED:** `WifiPowerSaveGuard` changes global Wi-Fi power-save state. Combined with `HttpDownloader`'s not-thread-safe contract, network requests must be single-flight and coordinated with main-task Wi-Fi mode/disconnect operations.
 - **DESIGN DIRECTION:** an activity-owned `ActivityWorker` wrapper remains viable, but its cancellation contract cannot promise prompt sleep transition until DNS/TCP behavior is bounded or the request is constrained to a verified connection strategy. Worker must unwind RAII resources before completion; no forced deletion while network code is active.
 - **NEXT:** decide whether to (A) extend the pinned SDK transport with cancellable/bounded DNS and TCP setup, or (B) constrain endpoint addressing and accept a documented connection timeout. Then settle worker completion/reap handshake, stack/priority budget, and Wi-Fi ownership. No source edits, build, or device test performed.
+
+
+## Current milestone: per-book screensaver storage and lookup (implementation pushed; build pending)
+
+- Added a persistent image namespace outside disposable EPUB layout caches: `/.crosspoint/ai-screensaver/epub_<existing-cache-id>/`.
+- `current.bmp` is preferred by the cover sleep renderer for the active reflowable book; normal generated cover remains the fallback. Global `/sleep.bmp` handling is unchanged.
+- The local BMP diagnostic now downloads to `incoming.bmp` in the active book's directory, parses the BMP header before promotion, backs up an existing `current.bmp` to `previous.bmp`, and rolls back on promotion failure.
+- The screensaver directory is renamed alongside the existing EPUB cache identity when a finished book is moved to `/read`. Clearing the disposable layout cache does not delete the screensaver image.
+- XTC books are not yet assigned AI-image storage; this slice covers EPUB/TXT/Markdown through the existing Epub cache identity.
+- **Not yet verified:** no build or device test has run for this change. The implementation has been pushed to `feat/x4-reader-screensaver-transition`; the manual X4 workflow must be run before handing over a test `.bin`.
+- **Next:** run `X4 local GET diagnostic build` on this branch, inspect the build result/artifact, then test the per-book save and sleep lookup on the original X4.
