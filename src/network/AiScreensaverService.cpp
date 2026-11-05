@@ -9,7 +9,7 @@
 
 namespace {
 constexpr uint32_t LOCAL_HTTP_TIMEOUT_MS = 5000;
-constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 10000;
+constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 45000;
 constexpr uint32_t WORKER_STACK_BYTES = 8192;
 constexpr UBaseType_t WORKER_PRIORITY = 1;
 }  // namespace
@@ -63,9 +63,11 @@ bool AiScreensaverService::startGet(const std::string& url) {
     return true;
   }
 
-  // Do not take over an active AP or a disconnected station managed elsewhere.
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    finishOnMainTask(false, false, 0, "Wi-Fi is active but not connected");
+  // Only manage Wi-Fi when it is off or already in STA-only mode. Never
+  // change an AP or AP+STA configuration owned by another feature.
+  const wifi_mode_t currentMode = WiFi.getMode();
+  if (currentMode != WIFI_MODE_NULL && currentMode != WIFI_MODE_STA) {
+    finishOnMainTask(false, false, 0, "Wi-Fi AP mode is active");
     return false;
   }
 
@@ -79,7 +81,10 @@ bool AiScreensaverService::startGet(const std::string& url) {
     return false;
   }
 
-  WiFi.mode(WIFI_STA);
+  if (currentMode == WIFI_MODE_NULL) WiFi.mode(WIFI_STA);
+  // An enabled but disconnected STA can be left behind after the Wi-Fi
+  // selection screen. Re-issue begin() with the saved network instead of
+  // failing immediately; the service owns this reconnect until cleanup.
   WiFi.begin(credential->ssid.c_str(), credential->password.c_str());
   ownsWifi_ = true;
   state_ = State::CONNECTING;
