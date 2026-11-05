@@ -22,8 +22,8 @@ class LocalGetTestActivity final : public Activity {
 
  private:
   enum class State { REQUESTING, RESULT };
-  State state = State::CONNECTING;
-  std::string statusMessage = "Connecting to Wi-Fi...";
+  State state = State::RESULT;
+  std::string statusMessage = "Starting HTTP GET...";
   std::string requestUrl;
 
   bool getAttempted = false;
