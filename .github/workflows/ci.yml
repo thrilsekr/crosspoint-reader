@@ -1,15 +1,61 @@
 name: CI (build)
 
 on:
-  push:
-    branches: [develop]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      format: ${{ steps.filter.outputs.format }}
+      analysis: ${{ steps.filter.outputs.analysis }}
+      firmware: ${{ steps.filter.outputs.firmware }}
+      tests: ${{ steps.filter.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          cat changed-files.txt
+
+          if grep -Eq '^(src/|lib/|include/|test/|\.clang-format$|bin/clang-format-fix$)' changed-files.txt; then
+            echo "format=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "format=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep -Eq '^(src/|lib/|include/|platformio\.ini$|scripts/|freeink-sdk(/|$))' changed-files.txt; then
+            echo "analysis=true" >> "$GITHUB_OUTPUT"
+            echo "firmware=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "analysis=false" >> "$GITHUB_OUTPUT"
+            echo "firmware=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep -Eq '^(src/|lib/|include/|test/|CMakeLists\.txt$)' changed-files.txt; then
+            echo "tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
   clang-format:
+    needs: changes
+    if: needs.changes.outputs.format == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -34,7 +80,9 @@ jobs:
           git diff --exit-code || (echo "Please run 'bin/clang-format-fix' to fix formatting issues" && exit 1)
 
   cppcheck:
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.analysis == 'true'
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
@@ -78,30 +126,16 @@ jobs:
         run: pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
   build:
-    name: Build ${{ matrix.env }}
+    name: Build X4
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Short board-specific names keep pull-request artifacts easy to identify.
-        # The release workflow applies the published crosspoint-<version>-<device>.bin names.
         include:
           - env: default
             asset: firmware.bin
-          - env: sticky
-            asset: firmware-sticky.bin
-          - env: x4pro
-            asset: firmware-x4pro.bin
-          - env: x4c
-            asset: firmware-x4c.bin
-          - env: papermono
-            asset: firmware-papermono.bin
-          - env: metalio_eink4
-            asset: firmware-metalio_eink4.bin
-          - env: eego_a4
-            asset: firmware-eego_a4.bin
-          - env: picco
-            asset: firmware-picco.bin
     steps:
       - uses: actions/checkout@v6
         with:
@@ -176,6 +210,8 @@ jobs:
           if-no-files-found: error
 
   unit-tests:
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -207,6 +243,7 @@ jobs:
   test-status:
     name: Test Status
     needs:
+      - changes
       - build
       - clang-format
       - cppcheck
