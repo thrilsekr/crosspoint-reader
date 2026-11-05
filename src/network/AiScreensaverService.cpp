@@ -30,8 +30,8 @@ bool AiScreensaverService::isLocalIpv4HttpUrl(const std::string& url) {
 
   const uint8_t first = address[0];
   const uint8_t second = address[1];
-  return first == 10 || (first == 172 && second >= 16 && second <= 31) ||
-         (first == 192 && second == 168) || (first == 169 && second == 254);
+  return first == 10 || (first == 172 && second >= 16 && second <= 31) || (first == 192 && second == 168) ||
+         (first == 169 && second == 254);
 }
 
 bool AiScreensaverService::startGet(const std::string& url) {
