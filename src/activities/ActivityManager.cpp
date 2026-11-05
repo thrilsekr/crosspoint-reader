@@ -157,7 +157,7 @@ void ActivityManager::loop() {
       if (currentActivity && !currentActivity->prepareToExit()) return;
       if (pendingAction == PendingAction::Replace || pendingAction == PendingAction::ReplaceForSleep) {
         const bool stackReady = std::all_of(stackActivities.begin(), stackActivities.end(),
-                                               [](const auto& activity) { return activity->prepareToExit(); });
+                                            [](const auto& activity) { return activity->prepareToExit(); });
         if (!stackReady) return;
       }
     }
