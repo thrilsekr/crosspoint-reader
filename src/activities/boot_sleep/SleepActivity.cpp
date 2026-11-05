@@ -1076,31 +1076,30 @@ void SleepActivity::renderCoverSleepScreen() const {
       return (this->*renderNoCoverSleepScreen)();
     }
 
+    aiScreensaverDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
+    if (!aiScreensaverDirectory.empty()) {
+      HalFile aiFile;
+      const std::string aiPath = aiScreensaverDirectory + "/current.bmp";
+      if (Storage.openFileForRead("SLP", aiPath, aiFile)) {
+        Bitmap aiBitmap(aiFile);
+        if (aiBitmap.parseHeaders() == BmpReaderError::Ok) {
+          LOG_DBG("SLP", "Rendering per-book AI screensaver: %s", aiPath.c_str());
+          if (withOverlay) overlayCover = &aiBitmap;
+          renderBitmapSleepScreen(aiBitmap);
+          overlayCover = nullptr;
+          return;
+        }
+      }
+    }
+
     if (!lastEpub.generateCoverBmp(cropped, originalThresholds)) {
       LOG_ERR("SLP", "Failed to generate cover bmp");
       return (this->*renderNoCoverSleepScreen)();
     }
 
     coverBmpPath = lastEpub.getCoverBmpPath(cropped, originalThresholds);
-    aiScreensaverDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
   } else {
     return (this->*renderNoCoverSleepScreen)();
-  }
-
-  // Prefer this book's persistent AI image; the normal cover remains the fallback.
-  if (!aiScreensaverDirectory.empty()) {
-    HalFile aiFile;
-    const std::string aiPath = aiScreensaverDirectory + "/current.bmp";
-    if (Storage.openFileForRead("SLP", aiPath, aiFile)) {
-      Bitmap aiBitmap(aiFile);
-      if (aiBitmap.parseHeaders() == BmpReaderError::Ok) {
-        LOG_DBG("SLP", "Rendering per-book AI screensaver: %s", aiPath.c_str());
-        if (withOverlay) overlayCover = &aiBitmap;
-        renderBitmapSleepScreen(aiBitmap);
-        overlayCover = nullptr;
-        return;
-      }
-    }
   }
 
   HalFile file;
