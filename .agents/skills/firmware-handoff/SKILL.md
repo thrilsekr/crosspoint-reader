@@ -22,51 +22,29 @@ final build belongs after review fixes.
 **Done when:** the candidate meets the requirement, every hunk is accounted for,
 and checks run or unavailable checks with their reasons are recorded.
 
-## 2. Dispatch the initial reviews
+## 2. Main-agent review
 
-Launch a separate independent read-only subagent for each axis, reserving a slot
-for the main agent. Never substitute the main agent for a reviewer:
+Review the complete candidate diff against the human requirement and relevant
+repository rules. Inspect affected call paths, ownership, resource use, error
+handling, and compatibility. Run targeted static checks or tests where available.
+If a concrete concern benefits from a second opinion, request a focused,
+read-only review; independent reviews are optional, not a release gate.
 
-- [review-correctness](../review-correctness/SKILL.md)
-- [review-architecture](../review-architecture/SKILL.md)
-- [review-embedded](../review-embedded/SKILL.md)
-- [review-i18n-docs](../review-i18n-docs/SKILL.md)
+Record findings, rejected concerns, unresolved risks, and checks performed.
 
-Use fresh reviewer contexts where supported. Give each a compact packet: human
-requirement and constraints, repository path, comparison base, pinned diff and
-revision, review axis, and main-agent check results/log paths. Supply necessary
-human discussion without the main agent's analysis or verdict. Include this
-scope in every reviewer task:
-"Inspect code, diffs, history, and recorded checks only. No file writes, tests,
-builds, or new diagnostics; request needed checks from the main agent."
-Reviewers read relevant rule sections and do not run handoff or publish.
+**Done when:** every hunk is accounted for, verified problems are fixed, and
+remaining limitations are explicit.
 
-Keep the candidate unchanged while reviews run. Collect all four results before
-editing. A reviewer with no applicable changes may return a short explanation.
+## 3. Resolve findings
 
-**Done when:** all four initial results are recorded against the same candidate.
+Verify each finding against reachable code. Explain rejected findings and keep
+unresolved concerns visible. Decide which advisory cleanups belong to the
+requirement; defer unrelated improvements. Apply accepted fixes together, then
+verify the whole diff yourself. If a focused reviewer was used, re-check any
+follow-up changes against that review's concern.
 
-## 3. Resolve findings as one batch
-
-Collapse duplicates by root cause and verify findings against reachable code.
-Explain rejected findings and keep unresolved disagreements visible. Decide
-which advisory cleanups belong to the requirement; defer unrelated improvements.
-Apply all accepted fixes together, then verify the whole diff yourself.
-
-Allow one targeted follow-up round only when fixes invalidate a review's
-conclusions about behavior, ownership, resource costs, interfaces, persistent
-formats, build compatibility, or user-facing information. Reuse the original
-reviewers, giving them the diff since their reviewed candidate and the findings
-to verify. Mechanical corrections, formatting, and comment-only changes receive
-main-agent verification unless they change a substantive contract. Record which
-final changes each review covers.
-
-After this second round, fix verified problems and run affected checks. If a
-substantive concern or independently unreviewed material change remains, report
-it and leave handoff incomplete rather than starting an automatic third round.
-
-**Done when:** no verified finding remains unaddressed and independent reviews
-cover the final substantive changes within the two-round limit.
+**Done when:** no verified problem remains unaddressed and substantive risks are
+clearly recorded.
 
 ## 4. Complete final checks
 
@@ -101,8 +79,8 @@ the human's responsibility and must happen before a PR is opened. Never claim
 hardware verification yourself. Publication follows the root guide's human
 ownership policy and the [Git rule](../../rules/git-workflow.md).
 
-**Done when:** checks and independent reviews cover the final change, no verified
-finding remains, and explicit human acceptance covers the described behavior,
+**Done when:** checks cover the final change, no verified finding remains, and
+explicit human acceptance covers the described behavior,
 architecture, and maintenance responsibility. The hardware test plan is provided.
 If the human rejects the architecture, ask what must change and revise before
 calling it ready.
