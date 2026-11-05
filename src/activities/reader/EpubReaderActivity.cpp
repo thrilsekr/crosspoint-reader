@@ -203,6 +203,16 @@ void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string&
     }
   }
 
+  if (cacheMoved) {
+    const std::string oldAiDirectory = aiScreensaverDirectoryForCachePath(oldCachePath);
+    const std::string newAiDirectory = aiScreensaverDirectoryForCachePath(newCachePath);
+    if (!oldAiDirectory.empty() && !newAiDirectory.empty() && Storage.exists(oldAiDirectory.c_str()) &&
+        !Storage.rename(oldAiDirectory.c_str(), newAiDirectory.c_str())) {
+      LOG_ERR("ERS", "Failed to move AI screensaver directory %s -> %s", oldAiDirectory.c_str(),
+              newAiDirectory.c_str());
+    }
+  }
+
   RECENT_BOOKS.updatePath(srcPath, dstPath, oldCachePath, cacheMoved ? newCachePath : oldCachePath);
   if (APP_STATE.openEpubPath == srcPath) {
     APP_STATE.openEpubPath = dstPath;
@@ -1305,7 +1315,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::LOCAL_GET_TEST: {
-      startActivityForResult(std::make_unique<LocalGetTestActivity>(renderer, mappedInput),
+      startActivityForResult(std::make_unique<LocalGetTestActivity>(renderer, mappedInput, epub ? epub->getCachePath() : std::string{}),
                              [this](const ActivityResult&) { requestUpdate(); });
       break;
     }
