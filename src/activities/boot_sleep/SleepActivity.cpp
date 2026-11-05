@@ -836,7 +836,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
   renderer.displayBuffer(kSleepClean);
 }
 
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground) const {
+bool SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   const auto placement = calculateBitmapPlacement(bitmap.getWidth(), bitmap.getHeight(), renderer);
@@ -855,7 +855,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
 
   if (!renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, preserveBackground)) {
     renderer.displayBuffer(kSleepClean);
-    return;
+    return false;
   }
 
   if (!preserveBackground &&
@@ -870,18 +870,18 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     }
     renderTransparentCustomSleepScreen();
     overlayGrayCover = nullptr;
-    return;
+    return true;
   }
 
   const bool absolute = hasGreyscale && renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported();
   const BwFrameKeeper bwFrame(renderer, hasGreyscale && !absolute);
   if (!bwFrame.ready()) {
     renderer.displayBuffer(kSleepClean);
-    return;
+    return false;
   }
   if (absolute) {
     cleanBeforeAbsoluteGray(renderer);
-    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return;
+    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return false;
   } else if (hasGreyscale) {
     // OEM grayscale pipeline base. Must stay HALF: the gray nudge LUT is
     // calibrated against the pixel state the single-pass HALF waveform leaves
@@ -922,7 +922,9 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     else
       LOG_ERR("SLP", "Incomplete grayscale image; keeping the current display");
     renderer.setRenderMode(GfxRenderer::BW);
+    if (!ready) return false;
   }
+  return true;
 }
 
 bool SleepActivity::renderSleepOverlayFile(HalFile& file, const char* pathForLog) const {
@@ -1040,6 +1042,26 @@ void SleepActivity::renderCoverSleepScreen() const {
     default:
       renderNoCoverSleepScreen = &SleepActivity::renderDefaultSleepScreen;
       break;
+  }
+
+  // The diagnostic download is used only for reader-originated Cover+Custom
+  // sleep. System-menu sleep still renders the user's configured custom screen.
+  if (APP_STATE.lastSleepFromReader &&
+      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER_CUSTOM) {
+    constexpr char AI_COVER_TEST_PATH[] = "/x4-download-test.bmp";
+    HalFile aiFile;
+    if (Storage.openFileForRead("SLP", AI_COVER_TEST_PATH, aiFile)) {
+      Bitmap aiBitmap(aiFile);
+      const auto parseResult = aiBitmap.parseHeaders();
+      if (parseResult == BmpReaderError::Ok) {
+        LOG_DBG("SLP", "Rendering downloaded AI cover: %s", AI_COVER_TEST_PATH);
+        if (renderBitmapSleepScreen(aiBitmap)) return;
+        LOG_ERR("SLP", "Downloaded AI cover could not be rendered; using book cover");
+      } else {
+        LOG_ERR("SLP", "Downloaded AI cover is invalid (%s); using book cover",
+                Bitmap::errorToString(parseResult));
+      }
+    }
   }
 
   if (APP_STATE.openEpubPath.empty()) {

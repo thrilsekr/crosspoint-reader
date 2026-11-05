@@ -1,6 +1,7 @@
 #pragma once
 #include <HalStorage.h>
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -86,6 +87,10 @@ class HttpDownloader {
     std::vector<Header> headers;
     int* statusOut = nullptr;
     bool captureErrorBody = false;
+    bool followRedirects = true;
+    // Per-request overrides. Defaults preserve existing callers' behavior.
+    uint32_t timeoutMs = 60000;
+    const std::atomic<bool>* cancelFlag = nullptr;
   };
 
   static bool fetchUrl(const std::string& url, const DataCallback& onData, const FetchOptions& options);
