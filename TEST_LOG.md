@@ -192,3 +192,13 @@ For each future test, record:
 - `std::atomic` is available at configured `gnu++2a` language level; no target compile test performed.
 - `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Together with the non-thread-safe `HttpDownloader` contract, this reinforces single-flight HTTP and explicit Wi-Fi ownership.
 - Result: Worker architecture remains a viable direction, but bounded sleep cancellation is not yet proven. Need choose between SDK transport changes for bounded/cancellable DNS/TCP or a constrained endpoint/connection policy. No source code changed, no build triggered, no device test performed.
+
+
+## Per-book image storage implementation (2026-11-05)
+
+- Added `AiScreensaverStorage.h` to map the existing EPUB cache directory basename to the persistent `/.crosspoint/ai-screensaver/` namespace.
+- Updated `SleepActivity::renderCoverSleepScreen()` to parse and display the active book's `current.bmp` before falling back to the normal cover.
+- Updated the X4 local GET diagnostic to download into the active book's `incoming.bmp`, validate with `Bitmap::parseHeaders()`, and promote to `current.bmp` with `previous.bmp` rollback.
+- Updated finished-book move handling to rename the persistent AI directory alongside the existing EPUB cache directory.
+- **Build:** pending manual `X4 local GET diagnostic build`; no build result claimed.
+- **Device:** pending original X4 validation; no device result claimed.
