@@ -38,7 +38,9 @@ jobs:
           python-version: '3.13'
 
       - name: Patch pinned SDK for bounded worker connects
-        run: python scripts/patch_sdk_worker_connect_timeout.py
+        run: |
+          python -m py_compile scripts/patch_sdk_worker_connect_timeout.py
+          python scripts/patch_sdk_worker_connect_timeout.py
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
