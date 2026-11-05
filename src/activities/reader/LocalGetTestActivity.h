@@ -26,6 +26,7 @@ class LocalGetTestActivity final : public Activity {
   std::string statusMessage = "Starting HTTP GET...";
   std::string requestUrl;
 
+  bool wifiCancelled = false;
   bool getAttempted = false;
   bool waitingForGet = false;
   bool getSucceeded = false;
