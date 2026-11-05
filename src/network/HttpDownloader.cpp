@@ -127,6 +127,11 @@ bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData
       break;
     }
     applyCommonClientSetup(http);
+    http.setTimeout(options.timeoutMs);
+    if (options.cancelFlag && options.cancelFlag->load(std::memory_order_acquire)) {
+      status = 0;
+      break;
+    }
     // Credentials belong to the starting origin only: a redirect to another
     // origin (a CDN) must not receive them.
     if (freeink::fetchOrigin(current) == startOrigin) {
@@ -150,7 +155,13 @@ bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData
         return false;
       }
       return true;
+    }, [&options] {
+      return options.cancelFlag && options.cancelFlag->load(std::memory_order_acquire);
     });
+    if (http.aborted()) {
+      status = 0;
+      break;
+    }
     if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
       const std::string location = http.getHeader("location");
       if (location.empty() || !freeink::SecureHttpClient::resolveUrl(current, location, current)) break;
