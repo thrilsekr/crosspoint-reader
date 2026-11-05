@@ -159,9 +159,9 @@ void LocalGetTestActivity::render(RenderLock&&) {
   }
 
   if (state == State::RESULT) {
-    const auto labels = bmpAttempted ? mappedInput.mapLabels("Back", "Done", "", "")
-                        : postAttempted                 ? mappedInput.mapLabels("Back", "Download BMP", "", "")
-                                                        : mappedInput.mapLabels("Back", "POST test", "", "");
+    const auto labels = bmpAttempted    ? mappedInput.mapLabels("Back", "Done", "", "")
+                        : postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
+                                        : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();
