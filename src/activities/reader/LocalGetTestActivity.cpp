@@ -23,6 +23,7 @@ void LocalGetTestActivity::promptForUrl() {
     state = State::REQUESTING;
     statusMessage = "Starting HTTP GET...";
     getAttempted = true;
+    waitingForGet = true;
   }
   requestUpdate(true);
   performGet();
@@ -30,6 +31,7 @@ void LocalGetTestActivity::promptForUrl() {
 
 void LocalGetTestActivity::performGet() {
   if (!aiScreensaverService.startGet(requestUrl)) {
+    waitingForGet = false;
     const auto result = aiScreensaverService.snapshot();
     RenderLock lock(*this);
     getSucceeded = result.success;
@@ -93,9 +95,10 @@ void LocalGetTestActivity::loop() {
     return;
   }
 
-  if (state == State::REQUESTING && getAttempted) {
+  if (state == State::REQUESTING && waitingForGet) {
     const auto result = aiScreensaverService.snapshot();
     if (result.complete) {
+      waitingForGet = false;
       {
         RenderLock lock(*this);
         getSucceeded = result.success;
