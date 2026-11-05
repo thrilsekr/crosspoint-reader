@@ -11,7 +11,7 @@
 class LocalGetTestActivity final : public Activity {
  public:
   LocalGetTestActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookCachePath)
-      : Activity("LocalGetTest", renderer, mappedInput), bookCachePath(std::move(bookCachePath)) {}
+      : Activity("LocalGetTest", renderer, mappedInput), bookCachePath(bookCachePath) {}
 
   void onEnter() override;
   void loop() override;
