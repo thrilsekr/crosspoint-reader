@@ -58,6 +58,13 @@ Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK subm
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
 
+## 2026-11-05 — Reconnect disconnected STA before local GET — CI PENDING / DEVICE TEST PENDING
+
+- User observed that the X4's local GET test failed almost immediately, while manually joining Wi-Fi takes about 30 seconds.
+- Source diagnosis: `AiScreensaverService::startGet()` returned immediately whenever Wi-Fi mode was anything other than `WIFI_MODE_NULL` and the status was not `WL_CONNECTED`. A stale STA-only mode therefore skipped credential reconnect entirely. This diagnosis fits the observed timing; the precise old on-screen error string was not captured.
+- Change in commit `554745c4d4fdfa2208b3a8da875fa942ec1cf7ba`: reconnect when mode is exactly STA-only; preserve AP and AP+STA modes without changing them. If Wi-Fi is off, enable STA as before. Increase the Wi-Fi connection deadline from 10 to 45 seconds. The 5-second HTTP socket/connect timeout is unchanged.
+- Automated CI and X4 hardware validation are pending. Do not treat the source diagnosis as confirmed until the X4 test reports GET success or a more specific failure.
+
 ## 2026-11-02 — Reader/screensaver integration source investigation — DESIGN PATH VERIFIED (not device-tested)
 
 Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline` and SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`.
