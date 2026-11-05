@@ -146,18 +146,18 @@ bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData
     if (!options.acceptLanguage.empty()) http.addHeader("Accept-Language", options.acceptLanguage);
 
     LOG_DBG("HTTP", "wolfSSL GET: %s", current.c_str());
-    status = http.GET([&](const uint8_t* data, size_t len) {
-      const int st = http.getStatus();
-      const bool wanted = (st >= 200 && st < 300) || (options.captureErrorBody && st == 401);
-      if (!wanted) return true;  // redirect or error body: drain
-      if (!onData(data, len)) {
-        sinkStopped = true;
-        return false;
-      }
-      return true;
-    }, [&options] {
-      return options.cancelFlag && options.cancelFlag->load(std::memory_order_acquire);
-    });
+    status = http.GET(
+        [&](const uint8_t* data, size_t len) {
+          const int st = http.getStatus();
+          const bool wanted = (st >= 200 && st < 300) || (options.captureErrorBody && st == 401);
+          if (!wanted) return true;  // redirect or error body: drain
+          if (!onData(data, len)) {
+            sinkStopped = true;
+            return false;
+          }
+          return true;
+        },
+        [&options] { return options.cancelFlag && options.cancelFlag->load(std::memory_order_acquire); });
     if (http.aborted()) {
       status = 0;
       break;
