@@ -10,8 +10,8 @@
  */
 class LocalGetTestActivity final : public Activity {
  public:
-  LocalGetTestActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("LocalGetTest", renderer, mappedInput) {}
+  LocalGetTestActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookCachePath)
+      : Activity("LocalGetTest", renderer, mappedInput), bookCachePath(std::move(bookCachePath)) {}
 
   void onEnter() override;
   void loop() override;
@@ -23,6 +23,7 @@ class LocalGetTestActivity final : public Activity {
   State state = State::CONNECTING;
   std::string statusMessage = "Connecting to Wi-Fi...";
   std::string requestUrl;
+  std::string bookCachePath;
 
   bool wifiCancelled = false;
   bool getAttempted = false;
