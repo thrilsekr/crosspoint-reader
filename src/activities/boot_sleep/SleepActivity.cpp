@@ -881,7 +881,10 @@ bool SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   }
   if (absolute) {
     cleanBeforeAbsoluteGray(renderer);
-    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return false;
+    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) {
+      renderer.setRenderMode(GfxRenderer::BW);
+      return false;
+    }
   } else if (hasGreyscale) {
     // OEM grayscale pipeline base. Must stay HALF: the gray nudge LUT is
     // calibrated against the pixel state the single-pass HALF waveform leaves
@@ -1023,7 +1026,10 @@ void SleepActivity::renderTransparentCustomSleepScreen() const {
     // Show the plain cover.
     const Bitmap& cover = *overlayCover;
     overlayCover = nullptr;
-    if (cover.rewindToData() == BmpReaderError::Ok) return renderBitmapSleepScreen(cover);
+    if (cover.rewindToData() == BmpReaderError::Ok) {
+      renderBitmapSleepScreen(cover);
+      return;
+    }
   }
   renderDefaultSleepScreen();
 }
