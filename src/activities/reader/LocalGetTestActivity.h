@@ -27,6 +27,7 @@ class LocalGetTestActivity final : public Activity {
   std::string requestUrl;
 
   bool getAttempted = false;
+  bool waitingForGet = false;
   bool getSucceeded = false;
   int getHttpStatus = 0;
   bool postAttempted = false;
