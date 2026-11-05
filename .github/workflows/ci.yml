@@ -29,13 +29,13 @@ jobs:
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
           cat changed-files.txt
 
-          if grep -Eq '^(src/|lib/|include/|test/|\\.clang-format$|bin/clang-format-fix$)' changed-files.txt; then
+          if grep -Eq '^(src/|lib/|include/|test/|\.clang-format$|bin/clang-format-fix$)' changed-files.txt; then
             echo "format=true" >> "$GITHUB_OUTPUT"
           else
             echo "format=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if grep -Eq '^(src/|lib/|include/|platformio\\.ini$|scripts/|freeink-sdk(/|$))' changed-files.txt; then
+          if grep -Eq '^(src/|lib/|include/|platformio\.ini$|scripts/|freeink-sdk(/|$))' changed-files.txt; then
             echo "analysis=true" >> "$GITHUB_OUTPUT"
             echo "firmware=true" >> "$GITHUB_OUTPUT"
           else
@@ -43,7 +43,7 @@ jobs:
             echo "firmware=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if grep -Eq '^(src/|lib/|include/|test/|CMakeLists\\.txt$)' changed-files.txt; then
+          if grep -Eq '^(src/|lib/|include/|test/|CMakeLists\.txt$)' changed-files.txt; then
             echo "tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "tests=false" >> "$GITHUB_OUTPUT"
