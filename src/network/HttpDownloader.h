@@ -87,6 +87,7 @@ class HttpDownloader {
     std::vector<Header> headers;
     int* statusOut = nullptr;
     bool captureErrorBody = false;
+    bool followRedirects = true;
     // Per-request overrides. Defaults preserve existing callers' behavior.
     uint32_t timeoutMs = 60000;
     const std::atomic<bool>* cancelFlag = nullptr;
