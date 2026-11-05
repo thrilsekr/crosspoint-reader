@@ -79,28 +79,33 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Current milestone
 
-**Application-owned HTTP worker lifecycle — IMPLEMENTED; automated CI PASS; independent firmware handoff and X4 validation remain.**
+**Application-owned HTTP worker lifecycle — READY FOR X4 DEVICE TESTING.**
 
 - PR #3: https://github.com/thrilsekr/crosspoint-reader/pull/3
-- Branch: `feat/ai-worker-lifecycle`, targeting `ai-screensaver/2.0.0-baseline`.
-- Reviewed implementation at head `411f00b0f2bf67a444e7595bc070d0801a577a38`.
-- Latest authoritative PR CI run: `41968663811`, completed successfully. X4 firmware build, unit tests, cppcheck, clang-format, and overall status passed.
-- Source/API review by the main agent checked the worker/service, HTTP cancellation, ActivityManager pre-exit gate, Arduino main-loop service advancement, and sleep drain against CrossPoint 2.0.0 and pinned SDK. No confirmed blocking defect was found in that pass.
-- The repository's mandatory four independent firmware reviews (correctness, architecture, embedded, i18n/docs) have **not** been completed. No independent review submissions are present on PR #3. The available session has no subagent dispatch capability, so this requirement cannot honestly be marked complete.
+- Branch: `feat/ai-worker-lifecycle`, base `ai-screensaver/2.0.0-baseline`.
+- Firmware source: `c11b3777856ed4a5aceb8e81d224bc87c92fb385`.
+- Latest CI: run `41972133487`, completed successfully. X4 firmware build, unit tests, cppcheck, clang-format, and overall test status passed.
+- Artifact ID `13390033244`, `firmware.bin`, 5,595,552 bytes; SHA-256 `cf88e1cc56cb91ec78c78111b5bf62163778b61f05dfd742dfee170f31b0f185`.
+- Main-agent source/API review completed; no confirmed blocking defect found. User explicitly waived the four independent reviews for this solo-maintained project. PR remains draft pending device validation.
 - Application-lifetime `AiScreensaverService` owns the worker, cancellation/result state, and Wi-Fi ownership. Main task owns credential loading, connection setup, and cleanup.
 - Worker performs one GET only, has no Activity/render/SD access, unwinds HTTP and `WifiPowerSaveGuard`, publishes completion, then suspends. Main task reaps only after the suspended state is observed.
-- The service-owned Wi-Fi connection remains available for the sequential POST/BMP diagnostic steps and is released on activity exit or sleep. Existing connected Wi-Fi is reused and never disconnected by the service.
+- Service-owned Wi-Fi remains available for sequential diagnostic POST/BMP requests and is released on activity exit or sleep. Existing connected Wi-Fi is reused and never disconnected by the service.
 - ActivityManager's pre-exit gate runs outside `RenderLock`; sleep requests cancellation under the lock and drains the worker after the lock is released, before sleep-event network delivery.
-- Initial stack is 8 KiB; high-water logging is present, but X4 stack/heap measurements are not yet available.
-- The initial request is restricted to RFC1918/link-local IPv4 literal plain-HTTP endpoints with redirects disabled. The 5,000 ms timeout is per socket/connect operation, not a strict total deadline. Faster exit remains a future optimization.
+- Worker stack is provisionally 8 KiB; high-water logging is present. X4 stack/heap measurement remains part of device testing.
+- Initial GET is restricted to RFC1918/link-local IPv4 literal plain HTTP, with redirects disabled. The 5,000 ms timeout is per socket/connect operation, not a strict whole-request deadline. Faster exit remains a future optimization.
 
-### Validation status and next gate
+### Validation and next action
 
-- **Automated CI: PASS** on commit `411f00b0` (run `41968663811`).
-- **Main-agent source review: completed; no confirmed blocking defect found.**
-- **Independent firmware handoff reviews: outstanding (mandatory repository requirement).**
-- **X4 device validation: not performed.** No firmware for this worker change has been sideloaded.
-- PR remains draft. Do not sideload until the independent handoff reviews and explicit design/maintenance acceptance are complete. After those gates, provide the X4 SD-card test plan and use the PR artifact. No firmware flashing is performed by the assistant.
+- **Automated CI: PASS** on source commit `c11b3777`, run `41972133487`.
+- **Source/API review: PASS** (main agent).
+- **Independent reviews: WAIVED** by project owner for this solo-maintained project.
+- **X4 device validation: READY / NOT YET RUN.**
+- User should download the artifact, sideload via SD using the established CrossPoint 2.0.0 update process, then run the diagnostic sequence below. No firmware is flashed by the assistant.
+- Test screen: EPUB reader menu > **Local GET test**. It starts GET automatically. Confirm advances to POST, then BMP. Back exits.
+- Receiver endpoint is currently hardcoded in this diagnostic build as `192.168.1.177:8765`. Start the existing local receiver on that address before opening the test. If that address is no longer the receiver PC's address, stop and tell the assistant; do not share the address in chat. Receiver routes must be GET/POST `/event` and GET `/test.bmp`.
+- Expected sequence: GET /event HTTP 200; press Confirm, POST /event HTTP 200; press Confirm, GET /test.bmp HTTP 200 and file saved as `/x4-download-test.bmp`. This does not overwrite `/sleep.bmp`.
+- Then test Back during a deliberately slow/in-flight GET and sleep during a deliberately slow/in-flight GET. Confirm cancellation drains safely before transition/sleep; note elapsed delay and any receiver-side disconnect/timeout. Finally open `x4-download-test.bmp` and confirm it opens.
+- Record worker stack high-water log if available. Do not treat a successful build as evidence of hardware correctness.
 
 ## Confirmed CrossPoint 2.0.0 findings
 

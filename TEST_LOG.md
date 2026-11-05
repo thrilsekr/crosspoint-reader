@@ -187,3 +187,17 @@ For each future test, record:
 - `std::atomic` is available at configured `gnu++2a` language level; no target compile test performed.
 - `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Together with the non-thread-safe `HttpDownloader` contract, this reinforces single-flight HTTP and explicit Wi-Fi ownership.
 - Result: Worker architecture remains a viable direction, but bounded sleep cancellation is not yet proven. Need choose between SDK transport changes for bounded/cancellable DNS/TCP or a constrained endpoint/connection policy. No source code changed, no build triggered, no device test performed.
+
+
+## 2026-11-05 — Application-owned HTTP worker lifecycle: X4 device test READY
+
+- User waived independent review requirements for this solo-maintained project; main-agent source/API review is complete.
+- Final CI run: [41972133487](https://github.com/thrilsekr/crosspoint-reader/actions/runs/41972133487), completed successfully. X4 build, unit tests, cppcheck, clang-format, and overall status all passed.
+- Source commit: `c11b3777856ed4a5aceb8e81d224bc87c92fb385`.
+- Artifact ID: `13390033244`; ZIP contains `firmware.bin` (5,595,552 bytes).
+- Firmware SHA-256: `cf88e1cc56cb91ec78c78111b5bf62163778b61f05dfd742dfee170f31b0f185`.
+- Diagnostic activity endpoint is currently hardcoded as `http://192.168.1.177:8765/event`; BMP endpoint is `http://192.168.1.177:8765/test.bmp`. Do not publish/share private LAN details. If the local receiver host address differs, stop before testing and update the endpoint locally in a follow-up code change.
+- Enter EPUB reader menu and select **Local GET test**. GET begins automatically. Confirm advances to POST, then BMP. Back exits.
+- Expected: GET /event HTTP 200; POST /event HTTP 200; GET /test.bmp HTTP 200; file saved as `/x4-download-test.bmp`. Active `/sleep.bmp` is not touched.
+- Additional lifecycle checks: press Back during a deliberately delayed GET; request sleep during a deliberately delayed GET. Observe whether exit/sleep waits for cleanup and record elapsed time, receiver behavior, and worker stack high-water log.
+- Device validation remains NOT RUN until the user reports results.

@@ -158,3 +158,7 @@ This file records decisions that should not be reopened without new evidence or 
 - Prefer concise structured fields, stable labels, exact identifiers, dates, and explicit status tags: CONFIRMED / HYPOTHESIS / UNTESTED / BLOCKED / DONE.
 - Avoid repeating the same facts across files; handoff stores current state, decisions stores durable constraints, test log stores chronological evidence.
 - User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
+
+## Worker lifecycle review policy
+
+For the Xteink AI Screensaver work in this personal fork, the user is the sole project owner and has explicitly waived the repository's four independent firmware review requirement. The assistant performs the main-agent source/API review and reports its limits honestly. Automated CI and X4 device validation remain required; this project-specific waiver does not alter the repository's general review policy for other work.
