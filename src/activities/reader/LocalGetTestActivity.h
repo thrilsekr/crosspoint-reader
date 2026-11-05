@@ -21,12 +21,11 @@ class LocalGetTestActivity final : public Activity {
   bool preventAutoSleep() override { return true; }
 
  private:
-  enum class State { CONNECTING, REQUESTING, RESULT };
+  enum class State { REQUESTING, RESULT };
   State state = State::CONNECTING;
   std::string statusMessage = "Connecting to Wi-Fi...";
   std::string requestUrl;
 
-  bool wifiCancelled = false;
   bool getAttempted = false;
   bool getSucceeded = false;
   int getHttpStatus = 0;
