@@ -1,3 +1,21 @@
+# Xteink X4 AI Cover Art — Test and Build Log
+
+## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — BUILD PASS; DEVICE TEST PENDING
+
+- Source branch: `feat/ai-worker-lifecycle`, PR #3 targeting `feat/x4-reader-screensaver-transition`.
+- Build run: `42085257638`; original X4 only; unit tests, clang-format, cppcheck, and firmware build passed.
+- Artifact ID: `13443680344`; firmware binary size: 5,567,904 bytes.
+- SHA-256: `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
+- RAM: 66,680 / 327,680 bytes (20.3%). Flash: 5,553,375 / 6,553,600 bytes (84.7%).
+- Implementation: reader-originated `COVER_CUSTOM` sleep prefers `/x4-download-test.bmp`; missing, invalid, or unrenderable file falls back to the original book cover. System-menu custom screensaver path is unchanged.
+- No X4 device test of this display integration yet. User's next test is to sideload this build, sleep from an EPUB with Cover+Custom selected, then sleep from a system menu to verify both paths.
+
+## 2026-11-05 — Worker lifecycle and local BMP transfer — DEVICE PASS (user-reported)
+
+- Firmware tested: `x4-ai-worker-lifecycle-firmware.bin`, workflow run `42060939878`, artifact ID `13430903087`.
+- User-reported results: GET Pass; POST Pass; GET BMP Pass; BMP Saved.
+- Confirms the worker GET lifecycle and serialized POST/BMP download/save diagnostic. It does not validate the Cover+Custom display path.
+
 ## 2026-11-04 — X4 reader trigger + context preview — DEVICE PASS
 
 - Firmware source commit: `3360e939950fbf5d35022a085ec213628b7ec287`; built by manual X4 workflow run `41773580611`, job `126388673607`.
@@ -59,7 +77,7 @@ Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK subm
 - **Unresolved:** task creation/priority/stack/cleanup policy; safe cancellation through HTTP APIs and plain-HTTP stages; bounded stop/wait; Wi-Fi ownership.
 - No source files changed; no build; no device test. Documentation records only.
 
-# Xteink AI Screensaver — Test and Build Log
+
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
 

@@ -1,6 +1,6 @@
-# Xteink AI Screensaver — Decision Record
+# Xteink X4 AI Cover Art — Decision Record
 
-Last updated: 2026-11-02
+Last updated: 2026-11-05
 
 This file records decisions that should not be reopened without new evidence or an explicit user request.
 
@@ -28,57 +28,48 @@ This file records decisions that should not be reopened without new evidence or 
 - Do not introduce `reader.session` unless user explicitly asks to revisit it.
 - Automatic inactivity sleep is out of scope.
 
-## Reader-to-screensaver lifecycle
+## Reader-to-cover workflow
 
-- Capture the exact visible-page text and required book metadata while the reader is still alive.
-- Copy the captured data into an independently owned context; the screensaver must not retain pointers/references into the reader or its `Section`.
-- Replace the reader activity with the AI screensaver activity using `ActivityManager::replaceActivity()`; do not push the screensaver onto the activity stack and leave the reader underneath.
-- Let the normal reader `onExit()` and destruction path run before screensaver file/network work begins. This flushes reader session state and releases reader-owned EPUB/Section objects and caches.
-- The reader's normal bookmark/clipping SD writes are not evidence that arbitrary concurrent filesystem access is safe. Prefer the sequential ownership boundary above.
-- AI activity owns the copied context and screensaver workflow. Network worker never renders or manipulates the display.
-- On completion/failure, hand off to the existing main-loop deep-sleep orchestration. The AI activity must not duplicate hardware shutdown/deep-sleep steps.
-
-**Source-verified, not device-tested (2026-11-02):** `ActivityManager::replaceActivity()` defers replacement, exits/destroys the outgoing activity, clears the stack, and enters the replacement. `ReaderActivity::onExit()` flushes reader-session state and performs reader cleanup. `EpubReaderActivity` owns the EPUB and current Section through smart pointers. `Section::~Section()` performs its cleanup/suspend path. Exact lower-level EPUB file-handle closure and the concrete `ReadingContext` API remain unverified.
+- Capture the exact visible-page text and required book metadata while the reader is alive.
+- Copy the context into independently owned data before replacing or destroying the reader.
+- Use `ActivityManager::replaceActivity()`; do not push an AI activity on top of the reader.
+- Let normal reader `onExit()` and destruction release the EPUB and current Section before network work proceeds.
+- The eventual AI activity owns the copied context and UI. The application-lifetime network service never stores an activity pointer or draws to the display.
+- The final generation flow must hand off to CrossPoint's existing main-loop deep-sleep orchestration; do not create a second shutdown path.
+- The current `AI_SCREENSAVER=10` short-power action is still a temporary context-preview screen. It does not yet generate an image or initiate sleep.
 
 ## Architecture and rendering
 
-- AI activity owns display rendering.
-- Network code must not draw to the display.
-- Capture page text once and retain an owned copy.
-- Do not create an ad-hoc FreeRTOS task inside an activity. The pinned source contains conflicting worker guidance: `docs/activity-manager.md` says not to call `xTaskCreate` in activities and to propose a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the inspected firmware/SDK tree. Resolve this conflict and define an explicit lifecycle/cancellation contract before implementation.
-- Use existing activity stack and render-lock mechanisms.
-- Network polling and transition to deep sleep must be validated.
+- This is an EPUB cover-art replacement using CrossPoint's existing `Cover+Custom` sleep mode, not a new screensaver mode.
+- Source-verified routing: when `APP_STATE.lastSleepFromReader` is true and the selected mode is `COVER_CUSTOM`, `SleepActivity` calls `renderCoverSleepScreen()`. When sleep originates from system menus, it calls `renderCustomSleepScreen()`.
+- Prefer the downloaded/generated AI BMP only for reader-originated `COVER_CUSTOM` sleep. If it is missing, invalid, or cannot be rendered, fall back to the original book cover and then CrossPoint's existing no-cover fallback.
+- Leave `renderCustomSleepScreen()` unchanged. Do not alter general sleep-mode selection, create a new mode, or overwrite `/sleep.bmp`.
+- The current display milestone uses the temporary diagnostic file `/x4-download-test.bmp`. It is a test fixture, not the final per-book image store; stale-image identity and replacement rules remain future work.
+- `renderBitmapSleepScreen()` supports zoom-to-fit. It now reports render success/failure so a failed downloaded BMP can fall back to the original book cover. Do not add dimension, orientation, or aspect-ratio rejection.
+- Capture visible-page text and book metadata before reader teardown. Network code must not hold display locks or draw.
+- Use existing activity replacement and main-loop sleep orchestration. No direct deep-sleep calls from the AI activity.
 
-## Proposed Worker contract (design direction, not yet a settled implementation decision)
+## Worker lifecycle contract (settled and implemented)
 
-- Use a small activity-owned `ActivityWorker` wrapper that encapsulates FreeRTOS task creation; activity code must not create a raw task directly.
-- Worker receives independently owned request input and owns progress/result storage. It must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
-- One worker/request at a time. Activity `loop()` remains responsive and consumes synchronized progress/results.
-- Cancellation is cooperative and synchronized. HTTP code must poll the cancellation token and unwind normally so C++/HTTP/file/Wi-Fi RAII cleanup runs.
-- `prepareForSleep()` requests cancellation and waits for the HTTP operation to finish before sleep plugin delivery. The worker must not need `RenderLock`; this hook is called while that lock is held.
-- `onExit()` performs idempotent stop/reap before activity destruction. `vTaskDelete` may only reap a task after its operation has returned and resources have unwound; never use it to interrupt active network code.
-- Startup failure, normal completion, cancellation, timeout, and task cleanup all need explicit states. A bounded wait is required, but current plain-HTTP connect/DNS behavior prevents claiming one until addressed.
-- The repository's two worker instructions conflict; this contract is a proposal to reconcile them, not yet a firmware decision.
+- `AiScreensaverService` is application-lifetime and owned by the main application, not by a reader or diagnostic activity.
+- The main task owns service state and Wi-Fi lifecycle. The worker task receives copied request data and a cancellation token; it performs one HTTP GET and publishes a result.
+- The worker does not access SD storage, draw to the display, acquire `RenderLock`, or retain activity pointers.
+- The worker uses an 8 KiB stack at priority 1. Its result is reaped by the main task only after the worker has returned to its suspended completion state.
+- Sleep preparation calls `ActivityManager::prepareForSleep()` under `RenderLock`, then `AiScreensaverService::waitUntilIdle()` outside the lock before plugin delivery and radio shutdown.
+- Cancellation is cooperative. The current worker GET uses a 5-second HTTP socket timeout; Wi-Fi association can take up to 45 seconds when the service must join a saved network. These are not a single end-to-end deadline.
+- The user accepted the current 5-second request delay for now; keep reducing cancellation latency on the future-improvement list.
+- The current diagnostic activity performs POST and BMP file download sequentially on the main task after the worker GET completes. The worker itself does not download or save the BMP.
 
 ## Networking and worker cancellation
 
-- Caller establishes Wi-Fi; `HttpDownloader` does not connect.
-- Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
-- Do not run concurrent HTTP requests. `HttpDownloader` explicitly documents itself as not thread-safe and permits one fetch at a time.
-- Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
-- The secure GET/download path passes a cancellation callback into the pinned SDK's resumable fetch implementation. This is useful but does not prove prompt, thread-safe cancellation across every connection stage.
-- HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
-- Pinned SDK cancellation limitation (verified against SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`): both HTTPS and plain HTTP have uncancellable DNS/TCP setup. HTTPS passes the abort callback into `SecureClient`, but `SecureClient::connect()` checks it before `hostResolves()` / `Network.hostByName()`, then checks again after TCP connect; it polls during TLS handshake. Plain HTTP calls `hostResolves()` and `WiFiClient::connect()` without an abort callback. The DNS API exposes no caller-supplied timeout/abort argument. TCP connection timeout currently inherits the 60-second HTTP timeout. Do not promise bounded cancellation until addressed.
-- `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
-- `HalStorage` serializes SD operations with a recursive mutex and wraps `HalFile` read/write/close calls. The HAL source explicitly notes SdFat itself is not thread-safe. Background file access must use `Storage`/`HalFile`, not direct SdFat; do not share a `HalFile` instance concurrently.
-- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Keep HTTP single-flight and ensure the worker has fully unwound before sleep-event delivery or Wi-Fi shutdown. `HalPowerManager::Lock` currently supports only one lock at a time.
-- `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock` and is called before sleep plugin event delivery. Worker cancellation/completion must not need `RenderLock`, must finish before sleep-event network delivery, and must have a bounded wait.
-- `onExit()` is also a required stop-and-wait fallback for non-sleep activity transitions. Do not forcibly delete a task while its network call or C++ resource cleanup is active.
-- The exact worker creation/priority/stack/cleanup policy remains unresolved because repository guidance conflicts; resolve it before implementation.
-- Respect `downloadToFile()` staging behavior (`.part`, replace on success, remove partial on failure).
-- Keep service local-only where practical; no public exposure of the local receiver.
+- `HttpDownloader` is single-flight and must not be called concurrently.
+- `AiScreensaverService` currently supports a local IPv4 HTTP GET without redirects; DNS hostnames, HTTPS, and the final image-generation provider contract are not part of this diagnostic milestone.
+- The service reuses an existing station connection or joins saved Wi-Fi credentials in STA mode. It refuses to take over AP or AP+STA mode.
+- Worker cancellation uses an atomic flag checked by the downloader between network operations. Do not assume cancellation can interrupt every DNS or TCP connect operation instantly.
+- `downloadToFile()` writes to a `.part` file and replaces the destination only after a successful download; failed partial files are removed.
+- No concurrent GET, POST, or BMP download requests. The diagnostic sequence is deliberately serialized.
 
-## Image and storage
+## Generated cover art and storage
 
 - Generated screensaver imagery must be portrait-oriented (preferred device presentation). Landscape diagnostic fixtures are acceptable for transport/renderer tests only; they do not change the generation preference.
 - 800×400 is a target, not a hard validation rule.
@@ -117,9 +108,6 @@ This file records decisions that should not be reopened without new evidence or 
 - User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
 
 
-## Worker design investigation correction (2026-11-02)
+## Worker lifecycle implementation correction (2026-11-05)
 
-- `std::atomic` is available at the configured `gnu++2a` language level (`platformio.ini`); target build/use remains untested. A FreeRTOS event/semaphore primitive is an alternative.
-- Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
-- Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
-- The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.
+The initial worker lifecycle investigation is resolved in the X4 integration branch. The application-lifetime service, cooperative cancellation, activity exit gate, and pre-sleep drain are implemented. User-reported X4 testing of the worker diagnostic firmware passed GET, POST, GET-BMP, and BMP-save checks. This validates transport and file saving, not the new sleep-cover renderer; that renderer has a separate build and device test.
