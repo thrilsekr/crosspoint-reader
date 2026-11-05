@@ -94,15 +94,16 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ## Subsequent milestone
 
-**Worker/lifecycle investigation — architecture direction identified; cancellation and policy details remain open.**
+**Worker lifecycle + network cancellation contract — DESIGN SETTLED; implementation not started.**
 
-1. Proposed minimal abstraction: an activity-owned `ActivityWorker` wrapper that encapsulates task creation; the activity must not call raw `xTaskCreate`. Worker receives copied inputs, owns its result/progress state, and never retains or calls the Activity.
-2. Worker performs one synchronous HTTP operation at a time. Activity `loop()` remains responsive and reads synchronized progress/results. Worker never renders or acquires `RenderLock`.
-3. `prepareForSleep()` requests cooperative cancellation and waits for the HTTP operation to unwind before sleep-event delivery. The worker must not require `RenderLock`; `onExit()` performs idempotent final stop/reap before destruction. `vTaskDelete` may reap only a completed/parked task, never interrupt an active HTTP call.
-4. Resolve thread-safe cancellation and bounded plain-HTTP connection cancellation. Existing cancellation accepts `const bool*`; `fetchUrl()` and `postForm()` lack cancellation; the pinned SDK's plain HTTP DNS/connect path does not poll the abort callback and uses a 60-second connection timeout.
-5. Confirm Wi-Fi ownership and use only `HalStorage`/`HalFile` for cross-task file work. HAL serializes individual SD operations; direct SdFat use is not thread-safe.
-6. Resolve conflicting repository worker guidance (`docs/activity-manager.md` versus `.agents/rules/ui-activities.md`) into an explicit contract before implementation.
-7. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+- Repository worker guidance reconciled in commits `7974116`, `b6af84d`, and `a1ce6f0`: cooperative stop, completion handshake, then reap. Never force-delete a task while network/C++ cleanup is active.
+- Worker owns copied inputs and independent result/progress state; no Activity pointer, UI/render calls, or `RenderLock`. Activity owns Wi-Fi lifecycle. HTTP is single-flight.
+- Cross-task stop token: `std::atomic<bool>`; legacy `const bool*` downloader APIs must remain compatible for existing callers.
+- DNS gap resolved for this milestone by restricting worker URLs to IPv4 literals. Exact pinned platform source (Arduino-ESP32 3.3.11) confirms `NetworkManager::hostByName()` parses IP literals with `IPAddress::fromString()` and returns before DNS. Hostnames are not allowed in worker requests until a cancellable resolver exists.
+- TCP gap resolution: add a separate 2,000 ms connection timeout to plain and TLS transports, retaining the 60,000 ms response/handshake timeout. This requires a repository-owned patch against the pinned SDK submodule; do not move the SDK pin.
+- `prepareForSleep()` requests stop and waits for worker completion before sleep plugin delivery. Worker cleanup (HTTP client, file handle, Wi-Fi power-save guard) must finish before completion is published. `onExit()` performs the same idempotent stop/reap fallback.
+- **Not yet implemented or tested:** SDK connection-timeout patch, atomic cancellation overloads for GET/POST/download, worker wrapper/task lifecycle, worker UI integration, bounded-wait failure behavior, and device sleep-transition tests.
+- **Next:** implement the SDK patch and downloader cancellation surface first; build/verify those source changes, then add the worker wrapper and integrate it into the activity. Keep the manual X4-only Actions workflow unchanged.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
