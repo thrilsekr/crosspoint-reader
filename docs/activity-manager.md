@@ -470,3 +470,17 @@ void MyActivity::doNetworkStuff() {
   requestUpdate();
 }
 ```
+
+
+## Activity-owned worker lifecycle
+
+For an activity that needs responsive background I/O (rather than a synchronous operation in `loop()`):
+
+- Encapsulate task creation in a small activity-owned worker wrapper. Do not call raw `xTaskCreate` from an activity.
+- Give the worker copied/owned inputs and independently owned result/progress state. It must not retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
+- Use synchronized cooperative cancellation (`std::atomic<bool>` for a cross-task stop token). Never share an ordinary `bool` or `volatile bool` unsynchronized.
+- Serialize HTTP operations. The activity owns Wi-Fi lifecycle; the worker must not change Wi-Fi mode or disconnect.
+- `prepareForSleep()` requests cancellation and waits for completion. This hook runs under `RenderLock`, so the worker must not need that lock. Do not allow sleep-event delivery or Wi-Fi shutdown while the worker still owns network resources.
+- `onExit()` repeats stop/reap idempotently before activity destruction. A task may be deleted/reaped only after it reports completion and all network/file/RAII cleanup has finished. Never use `vTaskDelete()` to interrupt an active operation.
+- Keep the worker's request path cancellable and bounded before adding it. For the current X4 screensaver worker, use IPv4-literal endpoints only (avoids the pinned platform's synchronous DNS resolver) and a separate short TCP connection timeout; preserve the longer response timeout. Do not silently treat a hostname lookup or the existing 60-second connect timeout as prompt cancellation.
+- Size the stack from the actual call chain and verify the high-water mark on device; the shared render-task stack size is not a template.
