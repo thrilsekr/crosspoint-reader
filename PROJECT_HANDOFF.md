@@ -1,6 +1,6 @@
 # Xteink X4 AI Screensaver Project Handoff
 
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 ## Mission
 
@@ -39,7 +39,7 @@ The long-term design should not require a laptop. Laptop/PowerShell is currently
 - CrossPoint 2.0.0 base commit: `42d58daaabcf469a2e5e1ba871714fb9dcf51d29`
 - Exact SDK submodule: `5e94fe7480f019c89fbf691aef87523eb1b46704`
 - Latest firmware/source diagnostic commit: `98811e06eb687e83fba58eef2de86a8a2fb409f0`.
-- Latest branch HEAD at 2026-11-02 record update: `29b4bb1ced7fea7d3a0347e6dd8a03078179f50c` (documentation/workflow-only changes after the diagnostic firmware commit).
+- Project branch HEAD after CI policy PR #2: `6446d74c812893e13714cc7af8615aface9ede8a`.
 - Project records are versioned on the same branch; verify the live branch HEAD when resuming.
 - Latest commit message: “Keep cumulative results in local X4 diagnostic”.
 - Latest recorded GitHub Actions check: run/job `125165358875`, completed successfully at 2026-11-02 08:19:28 UTC.
@@ -77,17 +77,29 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - Workflow is `workflow_dispatch` only, X4-only; documentation commits/pushes do not trigger builds.
 - No firmware rebuild is needed for this documentation update.
 
-### Next milestone
+### Current milestone
 
-**Worker/lifecycle investigation — architecture direction identified; cancellation and policy details remain open.**
+**Worker lifecycle and network cancellation — IMPLEMENTED IN PR #3; CI/device validation pending.**
 
-1. Proposed minimal abstraction: an activity-owned `ActivityWorker` wrapper that encapsulates task creation; the activity must not call raw `xTaskCreate`. Worker receives copied inputs, owns its result/progress state, and never retains or calls the Activity.
-2. Worker performs one synchronous HTTP operation at a time. Activity `loop()` remains responsive and reads synchronized progress/results. Worker never renders or acquires `RenderLock`.
-3. `prepareForSleep()` requests cooperative cancellation and waits for the HTTP operation to unwind before sleep-event delivery. The worker must not require `RenderLock`; `onExit()` performs idempotent final stop/reap before destruction. `vTaskDelete` may reap only a completed/parked task, never interrupt an active HTTP call.
-4. Resolve thread-safe cancellation and bounded plain-HTTP connection cancellation. Existing cancellation accepts `const bool*`; `fetchUrl()` and `postForm()` lack cancellation; the pinned SDK's plain HTTP DNS/connect path does not poll the abort callback and uses a 60-second connection timeout.
-5. Confirm Wi-Fi ownership and use only `HalStorage`/`HalFile` for cross-task file work. HAL serializes individual SD operations; direct SdFat use is not thread-safe.
-6. Resolve conflicting repository worker guidance (`docs/activity-manager.md` versus `.agents/rules/ui-activities.md`) into an explicit contract before implementation.
-7. Verify image-display path and main-loop deep-sleep handoff, then propose the smallest implementation slice. Build only when a firmware change is ready for a meaningful X4 device test.
+- PR #2 merged the CI policy: [PR #2](https://github.com/thrilsekr/crosspoint-reader/pull/2). CI now runs on PRs only, skips expensive jobs for docs/workflow-only changes, builds only X4 `default`, and publishes only the X4 artifact. No push-triggered CI remains on `develop`.
+- Worker implementation is on `feat/ai-worker-lifecycle`, targeting `ai-screensaver/2.0.0-baseline`: [PR #3](https://github.com/thrilsekr/crosspoint-reader/pull/3).
+- Application-lifetime `AiScreensaverService` owns the single worker and Wi-Fi lifecycle. Main task loads saved credentials, joins STA only when Wi-Fi is off, reuses an existing connected STA, and disconnects only a connection it established.
+- Worker owns only the GET call and copied URL; it has no Activity pointer, rendering access, or SD access. It uses the existing `HttpDownloader` and `WifiPowerSaveGuard`.
+- HTTP cancellation is an atomic token passed through `FetchOptions`; the per-request timeout is 5,000 ms. First implementation accepts only local plain-HTTP URLs with an IPv4 literal to avoid DNS. Existing callers retain the 60,000 ms default.
+- Worker unwinds HTTP/guard resources, publishes its result, then suspends. Main task reaps it only after confirming the task is suspended, then performs service-owned Wi-Fi cleanup. It never deletes an active HTTP task.
+- ActivityManager checks a nonblocking `prepareToExit()` gate outside `RenderLock` before destroying the current activity; Replace also gates stacked activities. Sleep requests cancellation under the lock and waits outside it before plugin-event network delivery.
+- The diagnostic GET now uses the service asynchronously. Existing POST and BMP diagnostic steps remain sequential and unchanged.
+- Five seconds is the initial per-socket/connect timeout and accepted Back/exit target, not a strict total-operation deadline. Reducing perceived exit delay is a future improvement.
+
+### Validation status
+
+- Source behavior was checked against CrossPoint 2.0.0 and pinned SDK commit `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+- CI PR #3 runs the X4 build, clang-format, cppcheck, and unit tests. The first formatting check found one lambda-layout issue; it was corrected. Final CI result is still pending.
+- No firmware has been installed or tested on the X4 for this worker change. Existing CrossPoint 2.0.0 firmware remains untouched.
+
+### Next action
+
+Wait for PR #3 CI to finish. If the X4 build and checks pass, review the final diff and prepare the X4 artifact. The user then sideloads it and verifies: normal GET, Back during connection/request, sleep during request (sleep-event delivery starts only after worker cleanup), reuse of existing Wi-Fi, cleanup of service-owned Wi-Fi, and no overlapping HTTP requests. Measure worker stack high-water and heap on the X4. Do not advance to image generation until this milestone is validated.
 
 ## Confirmed CrossPoint 2.0.0 findings
 

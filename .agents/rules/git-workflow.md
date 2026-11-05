@@ -7,7 +7,7 @@ than assuming `origin` is a fork or that an `upstream` remote exists.
 
 ### Git Operation Rules
 
-- Integration and PR comparisons target `develop`, not `master` or remote HEAD.
+- Ordinary integration and PR comparisons target `develop`, not `master` or remote HEAD. Exception: the user's Xteink AI Screensaver work targets `ai-screensaver/2.0.0-baseline` in their personal fork; never push or merge that work to `develop`.
 - Authorization follows [human ownership](../../AGENTS.md#human-ownership).
   Before an explicitly requested push, recheck remotes and use the destination
   specified by the human. Otherwise prefer the personal-fork remote (`fork`
@@ -37,4 +37,4 @@ and `.gitignore` before staging. Exclude unrelated user work. Ask if commit
 authorization is unclear.
 
 Hardware testing is required before a PR, not before an approved local commit.
-The human owns hardware results and PR prose/publication.
+The human owns hardware results. For the Xteink AI Screensaver project, PR mechanics and prose are delegated to the assistant; for other work, the human owns PR prose/publication.

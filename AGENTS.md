@@ -14,7 +14,7 @@ for, not silently treated as the pinned firmware dependency.
 
 ## Start here
 
-At session start, run `uname -s`, `git branch --show-current`, `git remote -v`, and `git status --short`. Integration work targets `develop`.
+At session start, run `uname -s`, `git branch --show-current`, `git remote -v`, and `git status --short`. Ordinary integration targets `develop`; the user's Xteink AI Screensaver project targets `ai-screensaver/2.0.0-baseline` in this personal fork and must not be pushed or merged to `develop`.
 
 Act as a senior embedded C++ engineer. Base claims on repository evidence: cite the paths and line numbers that justify a proposed change. Explain the mechanism behind performance or memory claims and justify every new heap allocation. For every fix, tell the human how to verify it.
 
@@ -55,10 +55,18 @@ diffs, history, and recorded checks only. The main agent owns verification:
 reviewers may not write files (including temporary diagnostics), run tests/builds,
 commit, publish, deploy, or flash.
 
-The human must write PR descriptions; agents may give concise factual notes and test
-results, never ready-to-paste PR prose. Creating/amending local commits requires
-explicit human approval. Push only on an explicit human instruction to push;
-edit/commit approval does not authorize it. Never open or close a PR.
+For the user's Xteink AI Screensaver project, the user has explicitly delegated
+GitHub PR workflow ownership to the assistant: create and maintain feature
+branches and PRs, write PR descriptions, and merge after required checks. This
+project-specific delegation overrides the generic PR-mechanics restrictions
+below for this project only. Continue to involve the human for impactful
+behavior/architecture/cost decisions and all device-side testing.
+
+For other repository work, the human must write PR descriptions; agents may give
+concise factual notes and test results, never ready-to-paste PR prose.
+Creating/amending local commits requires explicit human approval. Push only on
+an explicit human instruction to push; edit/commit approval does not authorize
+it. Never open or close a PR.
 
 Repository-facing prose: use plain English for non-native readers and standard
 technical terms when clearest. Code comments must be short and useful after merge; follow the
