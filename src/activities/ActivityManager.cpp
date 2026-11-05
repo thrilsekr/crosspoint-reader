@@ -150,6 +150,12 @@ void ActivityManager::loop() {
   }
 
   while (pendingAction != PendingAction::None) {
+    // A worker-backed activity can request cancellation and defer destruction
+    // without holding RenderLock. Its loop continues on later main-task passes.
+    if (currentActivity && pendingAction != PendingAction::Push && !currentActivity->prepareToExit()) {
+      return;
+    }
+
     // The page turner's radio gives its heap back before the next screen allocates. Its teardown
     // can span loop passes and runs outside the render lock.
     if (pendingAction != PendingAction::ReplaceForSleep &&
