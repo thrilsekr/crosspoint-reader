@@ -118,7 +118,6 @@ void AiScreensaverService::loop() {
   vTaskDelete(workerTask_);
   workerTask_ = nullptr;
 
-  cleanupOwnedWifi();
   busy_ = false;
   state_ = State::RESULT;
   {
@@ -184,6 +183,13 @@ void AiScreensaverService::waitUntilIdle() {
     loop();
     delay(10);
   }
+  cleanupOwnedWifi();
+}
+
+void AiScreensaverService::releaseOwnedWifi() {
+  // Main-task only. Keep the connection available to sequential diagnostic
+  // requests until the owning activity exits or the device begins sleeping.
+  if (!busy_) cleanupOwnedWifi();
 }
 
 bool AiScreensaverService::isIdle() const { return !busy_; }
