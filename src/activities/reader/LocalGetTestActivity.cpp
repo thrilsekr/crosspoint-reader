@@ -1,8 +1,10 @@
 #include "LocalGetTestActivity.h"
 
 #include <GfxRenderer.h>
+#include <WiFi.h>
 
 #include "MappedInputManager.h"
+#include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/AiScreensaverService.h"
@@ -10,9 +12,28 @@
 
 void LocalGetTestActivity::onEnter() {
   Activity::onEnter();
-  // The application service reuses connected Wi-Fi or joins the saved station
-  // network without requiring a Wi-Fi selection sub-activity.
-  promptForUrl();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    promptForUrl();
+    return;
+  }
+
+  // Preserve the proven CrossPoint connection flow. The worker service then
+  // reuses the station connection established by WifiSelectionActivity.
+  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
+                         [this](const ActivityResult& result) {
+                           if (result.isCancelled) {
+                             {
+                               RenderLock lock(*this);
+                               wifiCancelled = true;
+                               statusMessage = "Wi-Fi connection cancelled";
+                               state = State::RESULT;
+                             }
+                             requestUpdate(true);
+                             return;
+                           }
+                           promptForUrl();
+                         });
 }
 
 void LocalGetTestActivity::promptForUrl() {
@@ -114,7 +135,7 @@ void LocalGetTestActivity::loop() {
   if (state != State::RESULT) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (bmpAttempted) {
+    if (wifiCancelled || bmpAttempted) {
       finish();
     } else if (!postAttempted) {
       performPost();
@@ -140,6 +161,7 @@ void LocalGetTestActivity::render(RenderLock&&) {
 
   const int centerY = screen.y + screen.height / 2 - 50;
   const auto stageLine = [this](const char* label, const bool attempted, const bool succeeded, const int status) {
+    if (wifiCancelled) return std::string(label) + ": SKIPPED";
     if (!attempted) return std::string(label) + ": NOT RUN";
     return std::string(label) + (succeeded ? ": PASS HTTP " : ": FAIL HTTP ") + std::to_string(status);
   };
@@ -154,12 +176,12 @@ void LocalGetTestActivity::render(RenderLock&&) {
   const std::string fileLine =
       !bmpAttempted ? "BMP file: NOT TESTED" : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 90, fileLine.c_str());
-  if (state == State::REQUESTING) {
+  if (state == State::REQUESTING || state == State::RESULT) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 120, statusMessage.c_str());
   }
 
   if (state == State::RESULT) {
-    const auto labels = bmpAttempted    ? mappedInput.mapLabels("Back", "Done", "", "")
+    const auto labels = (wifiCancelled || bmpAttempted) ? mappedInput.mapLabels("Back", "Done", "", "")
                         : postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
                                         : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
