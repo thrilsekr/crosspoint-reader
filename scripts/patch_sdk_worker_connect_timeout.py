@@ -84,6 +84,30 @@ def main() -> None:
         "      _plain.setConnectionTimeout(_connectTimeoutMs == 0 ? _timeoutMs : _connectTimeoutMs);",
     )
     replace_once(
+        secure_client_cpp,
+        "  if (!_transport.connect(host, port)) {\n"
+        "    if (Serial) Serial.printf(\"[SecureClient] TCP connect failed (%s): %s:%u\\n\", label, host, port);\n"
+        "    return 0;\n"
+        "  }\n"
+        "  _tcpConnected = true;",
+        "  if (!_transport.connect(host, port)) {\n"
+        "    if (Serial) Serial.printf(\"[SecureClient] TCP connect failed (%s): %s:%u\\n\", label, host, port);\n"
+        "    return 0;\n"
+        "  }\n"
+        "  // Restore the longer socket I/O timeout after the bounded TCP connect.\n"
+        "  _transport.setConnectionTimeout(timeoutMs);\n"
+        "  _tcpConnected = true;",
+    )
+    replace_once(
+        secure_http_h,
+        "      if (!hostResolves(_host.c_str()) || !_plain.connect(_host.c_str(), _port)) return false;\n"
+        "      _conn = &_plain;",
+        "      if (!hostResolves(_host.c_str()) || !_plain.connect(_host.c_str(), _port)) return false;\n"
+        "      // Restore the longer socket I/O timeout after the bounded TCP connect.\n"
+        "      _plain.setConnectionTimeout(_timeoutMs);\n"
+        "      _conn = &_plain;",
+    )
+    replace_once(
         secure_http_h,
         "  uint32_t _timeoutMs = 15000;\n",
         "  uint32_t _timeoutMs = 15000;\n"
