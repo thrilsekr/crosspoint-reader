@@ -488,3 +488,18 @@ void MyActivity::doNetworkStuff() {
   requestUpdate();
 }
 ```
+
+
+## Application-owned worker services
+
+New asynchronous network work must not be owned by an Activity. Use an application-lifetime service to own copied request inputs, the FreeRTOS task handle, cancellation/result state, and any Wi-Fi connection it creates.
+
+- Advance service lifecycle and perform Wi-Fi mode changes, credential loading, connection setup, and cleanup from the Arduino/main task.
+- Worker code must not retain an Activity pointer, render, acquire `RenderLock`, or access SD storage. Keep shared HTTP clients single-flight.
+- ActivityManager's `prepareToExit()` gate runs outside `RenderLock`; it may request cancellation and defer destruction until the service reports idle. Do not block or join in `onExit()`.
+- `prepareForSleep()` is called under `RenderLock` and must only request cancellation. The main sleep path waits for worker cleanup outside the lock and before sleep-event network delivery or Wi-Fi shutdown.
+- The worker must unwind HTTP and all RAII resources before publishing completion and suspending. The main task reaps only after confirming the task is suspended; never forcibly delete active network work.
+- Keep a service-owned Wi-Fi connection available for sequential follow-on requests, then release it on activity exit or sleep. Never disconnect a station connection the service did not establish.
+- Validate task stack high-water and heap margin on target hardware; a configured stack size is not evidence of adequate margin.
+
+The Xteink AI Screensaver implementation in PR #3 is the first application of this pattern. Its 8 KiB worker stack and 5-second per-operation timeout are provisional; see the project handoff and test log for validation status.

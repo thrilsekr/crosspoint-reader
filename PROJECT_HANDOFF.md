@@ -79,27 +79,28 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Current milestone
 
-**Worker lifecycle and network cancellation — IMPLEMENTED IN PR #3; CI/device validation pending.**
+**Application-owned HTTP worker lifecycle — IMPLEMENTED; automated CI PASS; independent firmware handoff and X4 validation remain.**
 
-- PR #2 merged the CI policy: [PR #2](https://github.com/thrilsekr/crosspoint-reader/pull/2). CI now runs on PRs only, skips expensive jobs for docs/workflow-only changes, builds only X4 `default`, and publishes only the X4 artifact. No push-triggered CI remains on `develop`.
-- Worker implementation is on `feat/ai-worker-lifecycle`, targeting `ai-screensaver/2.0.0-baseline`: [PR #3](https://github.com/thrilsekr/crosspoint-reader/pull/3).
-- Application-lifetime `AiScreensaverService` owns the single worker and Wi-Fi lifecycle. Main task loads saved credentials, joins STA only when Wi-Fi is off, reuses an existing connected STA, and disconnects only a connection it established.
-- Worker owns only the GET call and copied URL; it has no Activity pointer, rendering access, or SD access. It uses the existing `HttpDownloader` and `WifiPowerSaveGuard`.
-- HTTP cancellation is an atomic token passed through `FetchOptions`; the per-request timeout is 5,000 ms. First implementation accepts only local plain-HTTP URLs with an IPv4 literal to avoid DNS. Existing callers retain the 60,000 ms default.
-- Worker unwinds HTTP/guard resources, publishes its result, then suspends. Main task reaps it only after confirming the task is suspended. A service-owned Wi-Fi connection stays available for sequential POST/BMP diagnostics and is released on activity exit or sleep. It never deletes an active HTTP task.
-- ActivityManager checks a nonblocking `prepareToExit()` gate outside `RenderLock` before destroying the current activity; Replace also gates stacked activities. Sleep requests cancellation under the lock and waits outside it before plugin-event network delivery.
-- The diagnostic GET now uses the service asynchronously. Existing POST and BMP diagnostic steps remain sequential and unchanged.
-- Five seconds is the initial per-socket/connect timeout and accepted Back/exit target, not a strict total-operation deadline. Reducing perceived exit delay is a future improvement.
+- PR #3: https://github.com/thrilsekr/crosspoint-reader/pull/3
+- Branch: `feat/ai-worker-lifecycle`, targeting `ai-screensaver/2.0.0-baseline`.
+- Reviewed implementation at head `411f00b0f2bf67a444e7595bc070d0801a577a38`.
+- Latest authoritative PR CI run: `41968663811`, completed successfully. X4 firmware build, unit tests, cppcheck, clang-format, and overall status passed.
+- Source/API review by the main agent checked the worker/service, HTTP cancellation, ActivityManager pre-exit gate, Arduino main-loop service advancement, and sleep drain against CrossPoint 2.0.0 and pinned SDK. No confirmed blocking defect was found in that pass.
+- The repository's mandatory four independent firmware reviews (correctness, architecture, embedded, i18n/docs) have **not** been completed. No independent review submissions are present on PR #3. The available session has no subagent dispatch capability, so this requirement cannot honestly be marked complete.
+- Application-lifetime `AiScreensaverService` owns the worker, cancellation/result state, and Wi-Fi ownership. Main task owns credential loading, connection setup, and cleanup.
+- Worker performs one GET only, has no Activity/render/SD access, unwinds HTTP and `WifiPowerSaveGuard`, publishes completion, then suspends. Main task reaps only after the suspended state is observed.
+- The service-owned Wi-Fi connection remains available for the sequential POST/BMP diagnostic steps and is released on activity exit or sleep. Existing connected Wi-Fi is reused and never disconnected by the service.
+- ActivityManager's pre-exit gate runs outside `RenderLock`; sleep requests cancellation under the lock and drains the worker after the lock is released, before sleep-event network delivery.
+- Initial stack is 8 KiB; high-water logging is present, but X4 stack/heap measurements are not yet available.
+- The initial request is restricted to RFC1918/link-local IPv4 literal plain-HTTP endpoints with redirects disabled. The 5,000 ms timeout is per socket/connect operation, not a strict total deadline. Faster exit remains a future optimization.
 
-### Validation status
+### Validation status and next gate
 
-- Source behavior was checked against CrossPoint 2.0.0 and pinned SDK commit `5e94fe7480f019c89fbf691aef87523eb1b46704`.
-- CI PR #3 runs the X4 build, clang-format, cppcheck, and unit tests. The first formatting check found one lambda-layout issue; it was corrected. Final CI result is still pending.
-- No firmware has been installed or tested on the X4 for this worker change. Existing CrossPoint 2.0.0 firmware remains untouched.
-
-### Next action
-
-Wait for PR #3 CI to finish. If the X4 build and checks pass, review the final diff and prepare the X4 artifact. The user then sideloads it and verifies: normal GET, sequential POST/BMP still work on service-owned Wi-Fi, Back during connection/request, sleep during request (sleep-event delivery starts only after worker cleanup and Wi-Fi release), reuse of existing Wi-Fi, cleanup of service-owned Wi-Fi on activity exit, and no overlapping HTTP requests. Measure worker stack high-water and heap on the X4. Do not advance to image generation until this milestone is validated.
+- **Automated CI: PASS** on commit `411f00b0` (run `41968663811`).
+- **Main-agent source review: completed; no confirmed blocking defect found.**
+- **Independent firmware handoff reviews: outstanding (mandatory repository requirement).**
+- **X4 device validation: not performed.** No firmware for this worker change has been sideloaded.
+- PR remains draft. Do not sideload until the independent handoff reviews and explicit design/maintenance acceptance are complete. After those gates, provide the X4 SD-card test plan and use the PR artifact. No firmware flashing is performed by the assistant.
 
 ## Confirmed CrossPoint 2.0.0 findings
 

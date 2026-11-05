@@ -1,3 +1,14 @@
+## 2026-11-04 — Worker lifecycle implementation — AUTOMATED CI PASS / INDEPENDENT REVIEW AND DEVICE TEST PENDING
+
+Reviewed candidate: PR #3, branch `feat/ai-worker-lifecycle`, commit `411f00b0f2bf67a444e7595bc070d0801a577a38`.
+
+- Authoritative PR workflow run: [41968663811](https://github.com/thrilsekr/crosspoint-reader/actions/runs/41968663811), completed successfully.
+- X4 firmware build, unit tests, cppcheck, clang-format, and overall test status all passed.
+- Main-agent source review covered `AiScreensaverService`, `HttpDownloader`, `ActivityManager` transition gating, main-loop service advancement, and sleep drain ordering against CrossPoint 2.0.0 and the pinned SDK. No confirmed blocking defect was found in that review.
+- Mandatory independent firmware-handoff reviews (correctness, architecture, embedded, i18n/docs) have not been performed; the available session has no subagent dispatch capability. This is an explicit outstanding gate, not a pass.
+- No X4 worker firmware has been sideloaded or device-tested. Worker stack high-water, heap margin, Back cancellation, sleep cancellation, Wi-Fi reuse/cleanup, and sequential POST/BMP behavior remain unverified on hardware.
+- PR #3 remains draft. Do not treat CI success as device validation or as completion of the repository's firmware handoff.
+
 ## 2026-11-04 — Application-owned worker first implementation — CI PENDING / NOT DEVICE-TESTED
 
 CrossPoint 2.0.0 project branch `ai-screensaver/2.0.0-baseline`; SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`; pioarduino platform `55.03.311` / Arduino Core 3.3.11.
