@@ -17,7 +17,6 @@ class AiScreensaverService {
     bool cancelled = false;
     int httpStatus = 0;
     std::string message;
-    std::string responseBody;
   };
 
   // Called only from the Arduino/main task. The first version deliberately
