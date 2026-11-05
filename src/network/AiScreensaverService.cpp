@@ -9,6 +9,7 @@
 
 namespace {
 constexpr uint32_t LOCAL_HTTP_TIMEOUT_MS = 5000;
+// X4 can take about 30 seconds to associate; allow time for DHCP as well.
 constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 45000;
 constexpr uint32_t WORKER_STACK_BYTES = 8192;
 constexpr UBaseType_t WORKER_PRIORITY = 1;
