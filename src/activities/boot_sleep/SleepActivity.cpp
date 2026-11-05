@@ -1058,8 +1058,7 @@ void SleepActivity::renderCoverSleepScreen() const {
         if (renderBitmapSleepScreen(aiBitmap)) return;
         LOG_ERR("SLP", "Downloaded AI cover could not be rendered; using book cover");
       } else {
-        LOG_ERR("SLP", "Downloaded AI cover is invalid (%s); using book cover",
-                Bitmap::errorToString(parseResult));
+        LOG_ERR("SLP", "Downloaded AI cover is invalid (%s); using book cover", Bitmap::errorToString(parseResult));
       }
     }
   }

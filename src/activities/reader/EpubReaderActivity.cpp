@@ -53,8 +53,8 @@
 #include "SdCardFontSystem.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "activities/util/DetailsActivity.h"
 #include "activities/settings/TextSettingsActivity.h"
+#include "activities/util/DetailsActivity.h"
 #include "clippings/ClippingText.h"
 #include "clippings/ClippingsManager.h"
 #include "components/UITheme.h"
@@ -3123,7 +3123,7 @@ void EpubReaderActivity::buildMoreActions() {
   moreItems.erase(std::remove_if(moreItems.begin(), moreItems.end(),
                                  [](const auto& item) {
                                    return item.action == MA::SELECT_CHAPTER || item.action == MA::TEXT_SETTINGS ||
-                                            item.action == MA::LOCAL_GET_TEST;
+                                          item.action == MA::LOCAL_GET_TEST;
                                  }),
                   moreItems.end());
 }
