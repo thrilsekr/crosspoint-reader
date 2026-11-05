@@ -80,17 +80,19 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - User tested `x4-ai-worker-lifecycle-firmware.bin`: GET Pass, POST Pass, GET BMP Pass, BMP Saved.
 - This validates worker GET lifecycle and serialized POST/BMP transfer/save. It does not validate the new sleep-cover display path.
 
-### Current milestone: downloaded BMP as EPUB cover — BUILD PASS; DEVICE TEST PENDING
+### Completed milestone: downloaded BMP as EPUB cover — DEVICE TEST PASS (2026-11-05; user-reported)
 
 - `SleepActivity::renderCoverSleepScreen()` now checks `/x4-download-test.bmp` only when sleep originates from the reader and `COVER_CUSTOM` is selected.
 - Missing, invalid, or unrenderable test BMP falls back to the original book cover. The system-menu path still calls `renderCustomSleepScreen()`; `/sleep.bmp` is untouched.
 - The test BMP was already saved to the SD card during the previous worker-lifecycle test. No need to repeat GET/POST/BMP transfer checks if that file is still present.
 - The short-power `AI_SCREENSAVER` action remains the temporary DetailsActivity context preview. For this renderer test, use the normal long power press from inside an EPUB to sleep.
-- The new X4-only firmware build passed CI. Device verification is exclusively the user's next step.
+- X4 device tests all passed (user-reported, 2026-11-05): reader-originated `Cover+Custom` displays the downloaded BMP; system-menu sleep retains the existing custom screensaver; fallback behavior passed when the diagnostic BMP is unavailable.
+- Firmware: workflow run `42085257638`, artifact `13443680344`, source commit `46cb346c4204da55b04ecd2140f51f91564d3b8c`; SHA-256 `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
+- This closes the static downloaded-image display milestone. `/x4-download-test.bmp` remains a temporary root-level fixture, not the final storage design.
 
 ## Next milestone
 
-After the user validates reader-originated Cover+Custom display and system-menu screensaver preservation, connect the actual image-generation provider and replace the diagnostic BMP path with per-book generated-image state. Do not start that milestone until the display test passes.
+Design and implement the final per-book image storage/lookup contract, then connect image generation and replace the diagnostic BMP path. Keep the current reader-originated `COVER_CUSTOM` behavior and system-menu screensaver path unchanged. Do not treat the diagnostic BMP as the final AI workflow.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
