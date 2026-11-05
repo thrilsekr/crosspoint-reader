@@ -49,16 +49,21 @@ This file records decisions that should not be reopened without new evidence or 
 - Use existing activity stack and render-lock mechanisms.
 - Network polling and transition to deep sleep must be validated.
 
-## Proposed Worker contract (design direction, not yet a settled implementation decision)
+## Worker lifecycle contract (SETTLED; implementation pending)
 
-- Use a small activity-owned `ActivityWorker` wrapper that encapsulates FreeRTOS task creation; activity code must not create a raw task directly.
-- Worker receives independently owned request input and owns progress/result storage. It must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
-- One worker/request at a time. Activity `loop()` remains responsive and consumes synchronized progress/results.
-- Cancellation is cooperative and synchronized. HTTP code must poll the cancellation token and unwind normally so C++/HTTP/file/Wi-Fi RAII cleanup runs.
-- `prepareForSleep()` requests cancellation and waits for the HTTP operation to finish before sleep plugin delivery. The worker must not need `RenderLock`; this hook is called while that lock is held.
-- `onExit()` performs idempotent stop/reap before activity destruction. `vTaskDelete` may only reap a task after its operation has returned and resources have unwound; never use it to interrupt active network code.
-- Startup failure, normal completion, cancellation, timeout, and task cleanup all need explicit states. A bounded wait is required, but current plain-HTTP connect/DNS behavior prevents claiming one until addressed.
-- The repository's two worker instructions conflict; this contract is a proposal to reconcile them, not yet a firmware decision.
+- Implement a small activity-owned `ActivityWorker` wrapper. Activity code must not call raw `xTaskCreate` / `xTaskCreatePinnedToCore`.
+- Worker input and result/progress state are independently owned; the task must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
+- One HTTP operation at a time. The AI activity owns Wi-Fi setup/teardown; the worker does not connect, disconnect, or change Wi-Fi mode.
+- Cross-task cancellation uses `std::atomic<bool>` (release store by owner, acquire load by HTTP callbacks); an ordinary shared `bool` or `volatile bool` is not acceptable.
+- All worker HTTP requests in this milestone use an IPv4-literal URL. The pinned Arduino-ESP32 3.3.11 `NetworkManager::hostByName()` checks `IPAddress::fromString()` first and returns before DNS for a valid literal. Hostnames remain unsupported in the worker until a cancellable/bounded resolver is designed.
+- Add a distinct 2,000 ms TCP connection timeout while retaining the existing 60,000 ms HTTP response/socket-operation timeout. Apply the connection timeout to both plain HTTP and HTTPS transport; HTTPS handshake/read timeout remains 60 seconds and handshake cancellation continues to poll the abort callback.
+- Extend the downloader cancellation surface to GET, POST, and file download using the atomic token. Cancellation must be checked at request entry, response/header/body reads, and every existing abort-capable SDK path. Preserve current synchronous APIs for existing callers.
+- `prepareForSleep()` requests cancellation and waits for worker completion while the hook holds `RenderLock`. The worker must never need that lock. Completion is published only after HTTP, file, and Wi-Fi guard cleanup has unwound.
+- `onExit()` performs the same idempotent stop-and-reap as a fallback for ordinary navigation. `vTaskDelete()` is permitted only after the worker has reported completion; it must never interrupt an active HTTP operation or C++ cleanup.
+- Worker startup failure, normal completion, cancellation, and task reaping have explicit states. If the worker cannot complete, sleep must not proceed to sleep-event delivery or Wi-Fi shutdown while the worker still owns the network.
+- Stack size is selected from the actual worker call chain and verified with stack high-water measurements; do not copy the render-task stack size.
+
+This resolves the conflicting repository guidance: cooperative cancellation and completion are mandatory; forced deletion of an active worker is forbidden.
 
 ## Networking and worker cancellation
 
@@ -66,7 +71,7 @@ This file records decisions that should not be reopened without new evidence or 
 - Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
 - Do not run concurrent HTTP requests. `HttpDownloader` explicitly documents itself as not thread-safe and permits one fetch at a time.
 - Existing `downloadToFile()` and `postToFile()` cancellation parameters are `const bool*`; this is not a thread-safe cross-task cancellation contract. `fetchUrl()` and `postForm()` have no cancellation parameter. Do not share an ordinary `bool` unsynchronized between tasks.
-- The secure GET/download path passes a cancellation callback into the pinned SDK's resumable fetch implementation. This is useful but does not prove prompt, thread-safe cancellation across every connection stage.
+- The secure GET/download path passes an abort callback into the pinned SDK's resumable fetch implementation. The worker will use the atomic cancellation overloads added for GET, POST, and download; legacy bool-pointer APIs remain for existing single-task callers.
 - HTTP timeout is 60 seconds per socket operation, not a total request deadline or a guarantee of bounded sleep cancellation.
 - Pinned SDK cancellation limitation (verified against SDK submodule `5e94fe7480f019c89fbf691aef87523eb1b46704`): both HTTPS and plain HTTP have uncancellable DNS/TCP setup. HTTPS passes the abort callback into `SecureClient`, but `SecureClient::connect()` checks it before `hostResolves()` / `Network.hostByName()`, then checks again after TCP connect; it polls during TLS handshake. Plain HTTP calls `hostResolves()` and `WiFiClient::connect()` without an abort callback. The DNS API exposes no caller-supplied timeout/abort argument. TCP connection timeout currently inherits the 60-second HTTP timeout. Do not promise bounded cancellation until addressed.
 - `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
