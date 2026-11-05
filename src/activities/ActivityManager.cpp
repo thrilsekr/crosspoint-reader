@@ -150,10 +150,16 @@ void ActivityManager::loop() {
   }
 
   while (pendingAction != PendingAction::None) {
-    // A worker-backed activity can request cancellation and defer destruction
-    // without holding RenderLock. Its loop continues on later main-task passes.
-    if (currentActivity && pendingAction != PendingAction::Push && !currentActivity->prepareToExit()) {
-      return;
+    // Worker-backed activities request cancellation and defer destruction
+    // without holding RenderLock. For Replace, every stacked activity is also
+    // destroyed, so all of them must report ready before the lock is acquired.
+    if (pendingAction != PendingAction::Push) {
+      if (currentActivity && !currentActivity->prepareToExit()) return;
+      if (pendingAction == PendingAction::Replace || pendingAction == PendingAction::ReplaceForSleep) {
+        for (const auto& activity : stackActivities) {
+          if (!activity->prepareToExit()) return;
+        }
+      }
     }
 
     // The page turner's radio gives its heap back before the next screen allocates. Its teardown
