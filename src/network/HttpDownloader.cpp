@@ -163,6 +163,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData
       break;
     }
     if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+      if (!options.followRedirects) break;
       const std::string location = http.getHeader("location");
       if (location.empty() || !freeink::SecureHttpClient::resolveUrl(current, location, current)) break;
       continue;
