@@ -110,7 +110,7 @@ void LocalGetTestActivity::performBmpDownload() {
   constexpr char BMP_URL[] = "http://192.168.1.177:8765/test.bmp";
   const std::string imageDirectory = aiScreensaverDirectoryForCachePath(bookCachePath);
   bool saved = false;
-  if (!imageDirectory.empty() && Storage.mkdir(imageDirectory.c_str())) {
+  if (!imageDirectory.empty() && Storage.ensureDirectoryExists(imageDirectory.c_str())) {
     const std::string incomingPath = imageDirectory + "/incoming.bmp";
     const std::string currentPath = imageDirectory + "/current.bmp";
     const std::string previousPath = imageDirectory + "/previous.bmp";
