@@ -2,7 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <WiFi.h>
-#include <BitmapHelpers.h>
+#include <Bitmap.h>
 #include <HalStorage.h>
 
 #include <algorithm>
