@@ -123,3 +123,14 @@ This file records decisions that should not be reopened without new evidence or 
 - Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
 - Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
 - The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.
+
+
+## Per-book AI screensaver image storage
+
+- Store generated/test images outside the disposable EPUB layout cache at `/.crosspoint/ai-screensaver/epub_<existing-cache-id>/`.
+- Reuse the existing `Epub::getCachePath()` directory basename as book identity; do not invent a second hash or key.
+- `current.bmp` is the displayed image; `incoming.bmp` is the untrusted download; `previous.bmp` is the rollback copy during promotion.
+- Validate BMP parsing before promotion. Do not enforce fixed dimensions or orientation; the renderer handles zoom-to-fit and portrait is a generation preference, not a file acceptance rule.
+- Missing/invalid per-book image falls back to the normal generated book cover. Global `/sleep.bmp` precedence remains unchanged.
+- Move the per-book directory when the existing EPUB cache identity is moved. Cache clearing must not remove AI screensaver images.
+- Current implementation slice covers reflowable books; XTC-specific identity remains out of scope until separately designed.
