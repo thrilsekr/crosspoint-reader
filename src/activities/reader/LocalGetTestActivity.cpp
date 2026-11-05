@@ -3,13 +3,12 @@
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
-#include <algorithm>
-
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "fontIds.h"
-#include "network/HttpDownloader.h"
 #include "components/UITheme.h"
+#include "fontIds.h"
+#include "network/AiScreensaverService.h"
+#include "network/HttpDownloader.h"
 
 void LocalGetTestActivity::onEnter() {
   Activity::onEnter();
@@ -19,13 +18,15 @@ void LocalGetTestActivity::onEnter() {
     return;
   }
 
+  // Preserve the proven CrossPoint connection flow. The worker service then
+  // reuses the station connection established by WifiSelectionActivity.
   startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
                          [this](const ActivityResult& result) {
                            if (result.isCancelled) {
                              {
                                RenderLock lock(*this);
-                               statusMessage = "Wi-Fi connection cancelled";
                                wifiCancelled = true;
+                               statusMessage = "Wi-Fi connection cancelled";
                                state = State::RESULT;
                              }
                              requestUpdate(true);
@@ -36,39 +37,31 @@ void LocalGetTestActivity::onEnter() {
 }
 
 void LocalGetTestActivity::promptForUrl() {
-  // Temporary diagnostic endpoint on the user's local PC.
-  // Keep this local-only; no address is sent to any external service.
+  // Temporary local diagnostic endpoint. This IPv4 literal avoids DNS and
+  // remains on the user's LAN; it is never sent to an external service.
   requestUrl = "http://192.168.1.177:8765/event";
   {
     RenderLock lock(*this);
     state = State::REQUESTING;
-    statusMessage = "Using saved local PC endpoint...";
+    statusMessage = "Starting HTTP GET...";
+    getAttempted = true;
+    waitingForGet = true;
   }
   requestUpdate(true);
   performGet();
 }
 
 void LocalGetTestActivity::performGet() {
-  {
+  if (!aiScreensaverService.startGet(requestUrl)) {
+    waitingForGet = false;
+    const auto result = aiScreensaverService.snapshot();
     RenderLock lock(*this);
-    state = State::REQUESTING;
-    statusMessage = "Sending HTTP GET...";
-    getAttempted = true;
-  }
-  requestUpdate(true);
-
-  const bool success = HttpDownloader::fetchUrl(
-      requestUrl, [](const uint8_t*, const size_t) { return true; });
-
-  const int httpStatus = HttpDownloader::lastStatus();
-  {
-    RenderLock lock(*this);
-    getSucceeded = success;
-    getHttpStatus = httpStatus;
-    statusMessage = success ? "GET test complete" : "GET test failed";
+    getSucceeded = result.success;
+    getHttpStatus = result.httpStatus;
+    statusMessage = result.complete ? result.message : "Could not start GET";
     state = State::RESULT;
+    requestUpdate(true);
   }
-  requestUpdate(true);
 }
 
 void LocalGetTestActivity::performPost() {
@@ -119,12 +112,27 @@ void LocalGetTestActivity::performBmpDownload() {
 }
 
 void LocalGetTestActivity::loop() {
-  if (state != State::RESULT) return;
-
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     finish();
     return;
   }
+
+  if (state == State::REQUESTING && waitingForGet) {
+    const auto result = aiScreensaverService.snapshot();
+    if (result.complete) {
+      waitingForGet = false;
+      {
+        RenderLock lock(*this);
+        getSucceeded = result.success;
+        getHttpStatus = result.httpStatus;
+        statusMessage = result.message;
+        state = State::RESULT;
+      }
+      requestUpdate(true);
+    }
+  }
+
+  if (state != State::RESULT) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (wifiCancelled || bmpAttempted) {
@@ -135,6 +143,15 @@ void LocalGetTestActivity::loop() {
       performBmpDownload();
     }
   }
+}
+
+void LocalGetTestActivity::prepareForSleep() { aiScreensaverService.requestCancel(); }
+
+bool LocalGetTestActivity::prepareToExit() {
+  aiScreensaverService.requestCancel();
+  if (!aiScreensaverService.isIdle()) return false;
+  aiScreensaverService.releaseOwnedWifi();
+  return true;
 }
 
 void LocalGetTestActivity::render(RenderLock&&) {
@@ -156,18 +173,17 @@ void LocalGetTestActivity::render(RenderLock&&) {
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 60,
                             stageLine("GET /test.bmp", bmpAttempted, bmpSucceeded, bmpHttpStatus).c_str());
 
-  const std::string fileLine = !bmpAttempted ? "BMP file: NOT TESTED"
-                              : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
+  const std::string fileLine =
+      !bmpAttempted ? "BMP file: NOT TESTED" : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 90, fileLine.c_str());
-  if (state == State::REQUESTING) {
+  if (state == State::REQUESTING || state == State::RESULT) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 120, statusMessage.c_str());
   }
 
   if (state == State::RESULT) {
-    const auto labels = (wifiCancelled || bmpAttempted)
-                            ? mappedInput.mapLabels("Back", "Done", "", "")
-                        : postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
-                                        : mappedInput.mapLabels("Back", "POST test", "", "");
+    const auto labels = (wifiCancelled || bmpAttempted) ? mappedInput.mapLabels("Back", "Done", "", "")
+                        : postAttempted                 ? mappedInput.mapLabels("Back", "Download BMP", "", "")
+                                                        : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();

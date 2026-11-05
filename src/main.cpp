@@ -45,6 +45,7 @@
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/AiScreensaverService.h"
 #include "platform/UsbSerialJtagHandoff.h"
 #include "util/ButtonNavigator.h"
 #include "util/PluginEvents.h"
@@ -380,6 +381,9 @@ static void deliverSleepPluginEvents(const bool allowNetwork) {
   // Activity-owned state must be queued before sleep.enter and before this
   // same-sleep drain. The hook is idempotent with ordinary activity teardown.
   activityManager.prepareForSleep();
+  // The activity hook only requests cancellation under RenderLock. Drain the
+  // application-owned HTTP worker and its Wi-Fi cleanup before event delivery.
+  aiScreensaverService.waitUntilIdle();
 
   // Sleeping straight out of a book is the common flow, but the reader's own
   // reader.exit only fires later, inside goToSleep() — after this drain. Carry
@@ -853,6 +857,9 @@ void loop() {
 
   gpio.setSharedConfirmPowerShortPressEmitsPower(SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP);
   mappedInputManager.update();
+
+  // Advance the application-owned AI network service on the Arduino task.
+  aiScreensaverService.loop();
 
   // Bluetooth page turner, before the USB drive's early return: a card handed to USB stops the radio
   // before anything else.

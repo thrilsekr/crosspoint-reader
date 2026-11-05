@@ -16,16 +16,19 @@ class LocalGetTestActivity final : public Activity {
   void onEnter() override;
   void loop() override;
   void render(RenderLock&&) override;
+  void prepareForSleep() override;
+  bool prepareToExit() override;
   bool preventAutoSleep() override { return true; }
 
  private:
-  enum class State { CONNECTING, REQUESTING, RESULT };
-  State state = State::CONNECTING;
-  std::string statusMessage = "Connecting to Wi-Fi...";
+  enum class State { REQUESTING, RESULT };
+  State state = State::RESULT;
+  std::string statusMessage = "Starting HTTP GET...";
   std::string requestUrl;
 
   bool wifiCancelled = false;
   bool getAttempted = false;
+  bool waitingForGet = false;
   bool getSucceeded = false;
   int getHttpStatus = 0;
   bool postAttempted = false;
