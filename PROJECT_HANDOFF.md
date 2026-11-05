@@ -94,16 +94,15 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ## Subsequent milestone
 
-**Worker lifecycle + network cancellation contract — DESIGN SETTLED; implementation not started.**
+**Worker network foundation — IMPLEMENTED IN SOURCE; X4 build pending. Worker task not yet implemented.**
 
-- Repository worker guidance reconciled in commits `7974116`, `b6af84d`, and `a1ce6f0`: cooperative stop, completion handshake, then reap. Never force-delete a task while network/C++ cleanup is active.
-- Worker owns copied inputs and independent result/progress state; no Activity pointer, UI/render calls, or `RenderLock`. Activity owns Wi-Fi lifecycle. HTTP is single-flight.
-- Cross-task stop token: `std::atomic<bool>`; legacy `const bool*` downloader APIs must remain compatible for existing callers.
-- DNS gap resolved for this milestone by restricting worker URLs to IPv4 literals. Exact pinned platform source (Arduino-ESP32 3.3.11) confirms `NetworkManager::hostByName()` parses IP literals with `IPAddress::fromString()` and returns before DNS. Hostnames are not allowed in worker requests until a cancellable resolver exists.
-- TCP gap resolution: add a separate 2,000 ms connection timeout to plain and TLS transports, retaining the 60,000 ms response/handshake timeout. This requires a repository-owned patch against the pinned SDK submodule; do not move the SDK pin.
-- `prepareForSleep()` requests stop and waits for worker completion before sleep plugin delivery. Worker cleanup (HTTP client, file handle, Wi-Fi power-save guard) must finish before completion is published. `onExit()` performs the same idempotent stop/reap fallback.
-- **Not yet implemented or tested:** SDK connection-timeout patch, atomic cancellation overloads for GET/POST/download, worker wrapper/task lifecycle, worker UI integration, bounded-wait failure behavior, and device sleep-transition tests.
-- **Next:** implement the SDK patch and downloader cancellation surface first; build/verify those source changes, then add the worker wrapper and integrate it into the activity. Keep the manual X4-only Actions workflow unchanged.
+- SDK remains pinned to `5e94fe7480f019c89fbf691aef87523eb1b46704`. `scripts/patch_sdk_worker_connect_timeout.py` applies a repository-owned patch in the build workspace and refuses any other SDK SHA.
+- SDK patch adds separate 2,000 ms TCP connect timeout to plain HTTP and HTTPS, restoring the existing 60,000 ms socket I/O timeout after successful connect. Resumable GET has an opt-out for redirects.
+- `HttpDownloader` now has atomic-token overloads for streaming GET, form POST, staged file GET, and staged file POST. They use acquire loads, require IPv4-literal URLs, and do not follow redirects. Legacy APIs remain intact and retain their prior timeout behavior.
+- The 2-second connection budget applies only to atomic worker overloads. Existing callers retain 60-second connect behavior. Response/socket-operation timeout remains 60 seconds.
+- Manual X4 Actions workflow now py-compiles and applies the patch before PlatformIO build. Workflow trigger remains `workflow_dispatch`; no new trigger was added.
+- **Not yet verified:** patch script against a real checked-out submodule, C++ compilation, firmware artifact, runtime cancellation, and X4 sleep-transition behavior.
+- **Next:** run the manual X4 build, inspect patch/build logs, correct any failures, and only then proceed to the ActivityWorker implementation. No device test is needed for this source/build foundation.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
