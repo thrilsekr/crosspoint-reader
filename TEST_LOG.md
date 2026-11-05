@@ -1,3 +1,15 @@
+## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — DEVICE PASS (user-reported)
+
+- Firmware: X4-only build from commit `46cb346c4204da55b04ecd2140f51f91564d3b8c`, workflow run `42085257638`, artifact `13443680344`.
+- Binary SHA-256: `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
+- User reports all X4 tests passed:
+  - Reader-originated sleep with `Cover+Custom` displays the downloaded `/x4-download-test.bmp`.
+  - System-menu sleep retains the existing custom screensaver.
+  - Missing-test-image fallback behavior returns to the original EPUB cover.
+- **Result: DEVICE PASS** for the downloaded-BMP sleep-cover integration and preservation of the system-menu screensaver path.
+- Scope limit: this is a static diagnostic BMP fixture. AI image generation, final per-book storage/lookup, and generated-image lifecycle are not implemented.
+- No further device test is required for this milestone.
+
 # Xteink X4 AI Cover Art — Test and Build Log
 
 ## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — BUILD PASS; DEVICE TEST PENDING
