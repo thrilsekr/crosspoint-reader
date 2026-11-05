@@ -26,6 +26,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "activities/reader/ReaderUtils.h"
+#include "activities/reader/AiScreensaverStorage.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
@@ -1082,6 +1083,23 @@ void SleepActivity::renderCoverSleepScreen() const {
     coverBmpPath = lastEpub.getCoverBmpPath(cropped, originalThresholds);
   } else {
     return (this->*renderNoCoverSleepScreen)();
+  }
+
+  // Prefer this book's persistent AI image; the normal cover remains the fallback.
+  const std::string aiDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
+  if (!aiDirectory.empty()) {
+    HalFile aiFile;
+    const std::string aiPath = aiDirectory + "/current.bmp";
+    if (Storage.openFileForRead("SLP", aiPath, aiFile)) {
+      Bitmap aiBitmap(aiFile);
+      if (aiBitmap.parseHeaders() == BmpReaderError::Ok) {
+        LOG_DBG("SLP", "Rendering per-book AI screensaver: %s", aiPath.c_str());
+        if (withOverlay) overlayCover = &aiBitmap;
+        renderBitmapSleepScreen(aiBitmap);
+        overlayCover = nullptr;
+        return;
+      }
+    }
   }
 
   HalFile file;
