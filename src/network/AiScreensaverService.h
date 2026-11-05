@@ -24,6 +24,7 @@ class AiScreensaverService {
   bool startGet(const std::string& url);
   void loop();
   void requestCancel();
+  void releaseOwnedWifi();
 
   // Main-task only. Called after ActivityManager::prepareForSleep() has
   // released RenderLock and before any sleep-event network delivery.
