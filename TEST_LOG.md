@@ -210,3 +210,13 @@ For each future test, record:
 - Source verified: TCP connection timeout currently inherits the 60-second HTTP timeout. TLS handshake and response reads have cooperative abort polling; TCP connect itself does not.
 - Decision recorded: worker URLs are IPv4 literals only; add a separate 2-second TCP connect timeout while retaining the 60-second response/handshake timeout. Cross-task cancellation uses an atomic token; worker shutdown is cooperative and tasks are reaped only after cleanup.
 - Repository worker guidance reconciled in commits `7974116`, `b6af84d`, `a1ce6f0`. No firmware source or SDK pin changed. No build or device test performed.
+
+
+## 2026-11-05 — Worker network foundation implementation (build pending)
+
+- Added repository-owned pinned-SDK patch script `scripts/patch_sdk_worker_connect_timeout.py`. It asserts exact SDK SHA `5e94fe7480f019c89fbf691aef87523eb1b46704`; SDK source is patched only in the Actions workspace, leaving the submodule pin untouched.
+- Patch adds a separate 2,000 ms TCP connect timeout for both `SecureClient` (TLS) and `SecureHttpClient` (plain HTTP), then restores the 60,000 ms socket I/O timeout after successful TCP connection. Existing SDK timeout behavior remains unchanged when no connect timeout is set.
+- Patch adds `FetchOptions::followRedirects` (default true); worker GET sets false to prevent redirecting an IPv4-literal request to a hostname and re-entering DNS.
+- `HttpDownloader` adds atomic-token overloads for streaming GET, form POST, staged GET-to-file, and staged POST-to-file. Worker overloads require IPv4-literal URLs, reject redirects, use 2-second connect timeout, and retain 60-second response timeout. Existing bool-pointer APIs remain unchanged.
+- Workflow updated only to py-compile and apply the SDK patch before the existing X4 build. Trigger remains manual `workflow_dispatch`.
+- **Verification status:** GitHub source edits committed; patch script and C++ changes have not yet run in CI. No build artifact or device test exists yet. Next required action is manually dispatching the X4 Actions workflow, then inspect its patch/build logs.
