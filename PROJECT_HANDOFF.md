@@ -99,6 +99,7 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - **Automated CI: PASS** on source commit `c11b3777`, run `41972133487`.
 - **Source/API review: PASS** (main agent).
 - **Independent reviews: WAIVED** by project owner for this solo-maintained project.
+- **Wi-Fi reconnect correction added:** commit `554745c4d4fdfa2208b3a8da875fa942ec1cf7ba` reconnects an already-enabled STA using saved credentials, leaves AP/AP+STA modes untouched, and extends the STA connection deadline to 45 seconds. The 5-second HTTP timeout is unchanged. New CI and X4 validation are pending.
 - **X4 device validation: READY / NOT YET RUN.**
 - User should download the artifact, sideload via SD using the established CrossPoint 2.0.0 update process, then run the diagnostic sequence below. No firmware is flashed by the assistant.
 - Test screen: EPUB reader menu > **Local GET test**. It starts GET automatically. Confirm advances to POST, then BMP. Back exits.
