@@ -111,7 +111,9 @@ requests cancellation; the main sleep path waits for service completion and
 Wi-Fi cleanup after releasing the lock and before plugin-event network delivery.
 `onExit()` must not block, join, or forcibly delete an active task. The worker
 unwinds HTTP/Wi-Fi RAII, publishes completion, then suspends; the main-task
-service reaps it only after confirming it is suspended.
+service reaps it only after confirming it is suspended. Keep service-owned Wi-Fi
+available for sequential requests until activity exit or sleep, then release it
+on the main task.
 
 Keep HTTP single-flight. The main task owns Wi-Fi mode/connect/disconnect.
 Use Storage/HalFile for worker SD access; never direct SdFat.

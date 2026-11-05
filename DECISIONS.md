@@ -52,23 +52,23 @@ This file records decisions that should not be reopened without new evidence or 
 ## Worker lifecycle contract (SETTLED; first implementation in PR #3)
 
 - `AiScreensaverService` is application-lifetime and owns the worker handle, copied URL, cancellation token, result state, and Wi-Fi ownership. It is advanced only by the Arduino/main task.
-- Main task owns Wi-Fi mode changes, credential loading, station connection, and cleanup. Reuse an already-connected STA. If Wi-Fi is off, load/copy the saved last-connected credentials and connect as STA. If Wi-Fi is already active but not connected, do not commandeer it. Disconnect/turn off Wi-Fi only when the service started it.
+- Main task owns Wi-Fi mode changes, credential loading, station connection, and cleanup. Reuse an already-connected STA. If Wi-Fi is off, load/copy the saved last-connected credentials and connect as STA. If Wi-Fi is already active but not connected, do not commandeer it. Keep a service-owned connection available for sequential diagnostic requests; release it only on activity exit or sleep. Never disconnect a connection the service did not establish.
 - Worker performs one HTTP GET only. It does not access SD storage. It owns the HTTP call and its `WifiPowerSaveGuard` lifetime; all RAII cleanup completes before result publication.
-- Worker publishes the result and suspends itself. The main task confirms the task is suspended, reaps it, then completes service cleanup. Never forcibly delete an active HTTP task.
+- Worker publishes the result and suspends itself. The main task confirms the task is suspended and reaps it. The service-owned Wi-Fi connection remains available to the activity's sequential POST/BMP diagnostic steps, then is released by the main task on activity exit or sleep. Never forcibly delete an active HTTP task.
 - Cancellation is a `std::atomic<bool>` token passed through `HttpDownloader::FetchOptions`. Result data is synchronized with a mutex. Do not share an ordinary `bool` between tasks.
 - ActivityManager calls `prepareToExit()` outside `RenderLock` before Pop/Replace/ReplaceForSleep. Replace also gates all stacked activities that it will destroy. The outgoing activity requests cancellation and returns not-ready until service cleanup is complete; the pending transition remains queued while the activity continues to run.
 - `onExit()` runs under `RenderLock` and never blocks, joins, or deletes a worker. `prepareForSleep()` only requests cancellation; main task waits for service idle outside the lock and before plugin-event network delivery.
 - Keep HTTP single-flight. No second request or sleep-event HTTP drain may overlap the worker.
 - Initial task stack is 8 KiB, with a high-water mark logged. This is provisional until measured on the X4; adjust from evidence, not copied examples.
 - Initial local request timeout is 5,000 ms per socket/connect operation. This is not a strict total-operation deadline; Back/exit stays deferred until all cleanup completes. Reducing perceived exit delay is a future optimization.
-- The initial service accepts only local plain-HTTP URLs with an IPv4 literal host. This avoids the pinned SDK's synchronous DNS stage; no local IP or credentials are sent to external services.
+- The initial service accepts only RFC1918 or link-local IPv4 plain-HTTP URLs, and redirects are disabled. This avoids the pinned SDK's synchronous DNS stage and prevents the diagnostic request from following an external redirect.
 
 ## Networking and worker cancellation
 
 - Use existing `HttpDownloader`; do not introduce another HTTP stack. It remains single-flight and not thread-safe.
 - `FetchOptions` now has a per-request `timeoutMs` (default 60,000 ms) and an optional pointer to a `std::atomic<bool>` cancellation token. The cancellable GET passes that token to the pinned SDK's `SecureHttpClient::GET` abort callback. Existing callers keep the 60-second default.
 - Pinned SDK commit `5e94fe7480f019c89fbf691aef87523eb1b46704`: `SecureHttpClient::setTimeout()` applies to plain HTTP socket and connection timeout. Header/body read loops poll abort. Plain HTTP TCP connect does not poll cancellation; it is bounded by the connection timeout.
-- Pinned Arduino Core 3.3.11 / pioarduino platform 55.03.311: `NetworkManager::hostByName()` parses an IP literal with `IPAddress.fromString()` before attempting DNS. The first local GET validates an IPv4 literal and uses a 5,000 ms per-operation timeout.
+- Pinned Arduino Core 3.3.11 / pioarduino platform 55.03.311: `NetworkManager::hostByName()` parses an IP literal with `IPAddress.fromString()` before attempting DNS. The first local GET validates RFC1918/link-local IPv4, disables redirects, and uses a 5,000 ms per-operation timeout.
 - The 5-second timeout is not a strict total request deadline. If a request or cleanup takes longer, activity exit and sleep wait until the worker is actually idle. Never kill the task to meet a timing target.
 - Existing `downloadToFile()` and `postToFile()` still accept `const bool*`; do not use that pointer as cross-task cancellation. `fetchUrl()` with `FetchOptions` is the first cancellable path; extend other methods only when required.
 - `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Keep HTTP single-flight and wait for its destructor before main-task Wi-Fi shutdown or sleep-event network delivery.

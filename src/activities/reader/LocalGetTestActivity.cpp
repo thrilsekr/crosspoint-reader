@@ -1,11 +1,12 @@
 #include "LocalGetTestActivity.h"
 
 #include <GfxRenderer.h>
+
 #include "MappedInputManager.h"
-#include "network/AiScreensaverService.h"
-#include "fontIds.h"
-#include "network/HttpDownloader.h"
 #include "components/UITheme.h"
+#include "fontIds.h"
+#include "network/AiScreensaverService.h"
+#include "network/HttpDownloader.h"
 
 void LocalGetTestActivity::onEnter() {
   Activity::onEnter();

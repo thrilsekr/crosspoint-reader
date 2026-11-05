@@ -86,7 +86,7 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - Application-lifetime `AiScreensaverService` owns the single worker and Wi-Fi lifecycle. Main task loads saved credentials, joins STA only when Wi-Fi is off, reuses an existing connected STA, and disconnects only a connection it established.
 - Worker owns only the GET call and copied URL; it has no Activity pointer, rendering access, or SD access. It uses the existing `HttpDownloader` and `WifiPowerSaveGuard`.
 - HTTP cancellation is an atomic token passed through `FetchOptions`; the per-request timeout is 5,000 ms. First implementation accepts only local plain-HTTP URLs with an IPv4 literal to avoid DNS. Existing callers retain the 60,000 ms default.
-- Worker unwinds HTTP/guard resources, publishes its result, then suspends. Main task reaps it only after confirming the task is suspended, then performs service-owned Wi-Fi cleanup. It never deletes an active HTTP task.
+- Worker unwinds HTTP/guard resources, publishes its result, then suspends. Main task reaps it only after confirming the task is suspended. A service-owned Wi-Fi connection stays available for sequential POST/BMP diagnostics and is released on activity exit or sleep. It never deletes an active HTTP task.
 - ActivityManager checks a nonblocking `prepareToExit()` gate outside `RenderLock` before destroying the current activity; Replace also gates stacked activities. Sleep requests cancellation under the lock and waits outside it before plugin-event network delivery.
 - The diagnostic GET now uses the service asynchronously. Existing POST and BMP diagnostic steps remain sequential and unchanged.
 - Five seconds is the initial per-socket/connect timeout and accepted Back/exit target, not a strict total-operation deadline. Reducing perceived exit delay is a future improvement.
@@ -99,7 +99,7 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 
 ### Next action
 
-Wait for PR #3 CI to finish. If the X4 build and checks pass, review the final diff and prepare the X4 artifact. The user then sideloads it and verifies: normal GET, Back during connection/request, sleep during request (sleep-event delivery starts only after worker cleanup), reuse of existing Wi-Fi, cleanup of service-owned Wi-Fi, and no overlapping HTTP requests. Measure worker stack high-water and heap on the X4. Do not advance to image generation until this milestone is validated.
+Wait for PR #3 CI to finish. If the X4 build and checks pass, review the final diff and prepare the X4 artifact. The user then sideloads it and verifies: normal GET, sequential POST/BMP still work on service-owned Wi-Fi, Back during connection/request, sleep during request (sleep-event delivery starts only after worker cleanup and Wi-Fi release), reuse of existing Wi-Fi, cleanup of service-owned Wi-Fi on activity exit, and no overlapping HTTP requests. Measure worker stack high-water and heap on the X4. Do not advance to image generation until this milestone is validated.
 
 ## Confirmed CrossPoint 2.0.0 findings
 

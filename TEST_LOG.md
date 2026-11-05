@@ -7,12 +7,12 @@ CrossPoint 2.0.0 project branch `ai-screensaver/2.0.0-baseline`; SDK submodule `
 - Worker runs the existing `HttpDownloader::fetchUrl()` GET and has no Activity pointer, render access, or SD access. The GET callback discards the body; no response-body buffer is allocated.
 - Added `FetchOptions.timeoutMs` (default 60,000 ms) and `cancelFlag` (`const std::atomic<bool>*`). GET passes the atomic token to the pinned SDK abort callback and applies the per-request timeout.
 - The SDK's plain HTTP connect path does not poll abort, but `setTimeout()` sets the connection timeout. IPv4-literal validation avoids the synchronous DNS stage. First request uses 5,000 ms per socket/connect operation.
-- Worker unwinds HTTP and `WifiPowerSaveGuard`, publishes the result, then suspends. Main task reaps only after `eTaskGetState()` reports `eSuspended`, then disconnects service-owned Wi-Fi. No active task is forcibly deleted.
+- Worker unwinds HTTP and `WifiPowerSaveGuard`, publishes the result, then suspends. Main task reaps only after `eTaskGetState()` reports `eSuspended`. The service-owned Wi-Fi connection remains available for sequential POST/BMP diagnostics and is released by the main task on activity exit or sleep. No active task is forcibly deleted.
 - ActivityManager's pre-exit gate runs outside RenderLock for current activity and, on Replace, all stacked activities. Sleep hook requests cancellation; main task drains service before sleep-event network delivery.
 - Initial worker stack: 8 KiB. Stack high-water is logged; actual X4 high-water and heap use remain unmeasured.
 - Existing POST and BMP diagnostic stages remain synchronous and sequential after GET completion; they do not overlap the worker.
 - PR #2 merged CI policy: PR-only, docs/workflow-only heavy-job skip, X4-only firmware build/artifact, cppcheck on Ubuntu 24.04.
-- Worker implementation PR #3 is open. CI for the latest code revision is being run; the initial clang-format failure was a formatting-only lambda layout and has been corrected. Record the final run IDs/results below when complete.
+- Worker implementation PR #3 is open as a draft. CI runs use a per-PR concurrency group so new commits cancel stale builds. Several early commits started redundant runs before this setting was added; later runs are the authoritative checks. Record the final run IDs/results below when complete.
 - No firmware has been flashed and no X4 device test has been performed for this worker change.
 
 ## 2026-11-02 — Worker design constraints: activity patterns, storage, and cancellation — SOURCE VERIFIED

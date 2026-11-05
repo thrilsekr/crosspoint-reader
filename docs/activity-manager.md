@@ -283,7 +283,8 @@ The main sleep path waits for worker completion and service-owned Wi-Fi cleanup
 after releasing RenderLock and before sleep/plugin-event network delivery.
 The worker publishes completion after HTTP/Wi-Fi RAII has unwound, then
 suspends; the application service reaps it only after confirming it is
-suspended. Keep HTTP single-flight.
+suspended. Keep HTTP single-flight. Service-owned Wi-Fi remains connected for
+sequential requests until activity exit or sleep, when the main task releases it.
 
 ### The Render Mutex and RenderLock
 
