@@ -173,10 +173,10 @@ void AiScreensaverService::workerMain() {
     result_.success = success;
     result_.cancelled = cancelled;
     result_.httpStatus = httpStatus;
-    result_.message = cancelled ? "GET cancelled"
-                         : success ? "GET complete"
-                                   : httpStatus == 0 ? "GET failed: no HTTP response"
-                                                     : "GET failed: HTTP " + std::to_string(httpStatus);
+    result_.message = cancelled         ? "GET cancelled"
+                      : success         ? "GET complete"
+                      : httpStatus == 0 ? "GET failed: no HTTP response"
+                                        : "GET failed: HTTP " + std::to_string(httpStatus);
   }
 
   const UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(nullptr);
