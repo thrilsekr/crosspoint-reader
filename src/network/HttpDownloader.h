@@ -1,6 +1,7 @@
 #pragma once
 #include <HalStorage.h>
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -64,6 +65,13 @@ class HttpDownloader {
   static bool fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username = "",
                        const std::string& password = "", const std::vector<Header>& headers = {});
 
+  // Worker-safe GET. The cancellation token is read atomically throughout the
+  // request. Requires an IPv4-literal URL and does not follow redirects, so
+  // connection setup never enters the synchronous DNS resolver.
+  static bool fetchUrl(const std::string& url, const DataCallback& onData, const std::atomic<bool>& cancelToken,
+                       const std::string& username = "", const std::string& password = "",
+                       const std::vector<Header>& headers = {});
+
   /**
    * Authentication and response inspection options for fetchUrl/postForm.
    * `bearer`, when set, sends "Authorization: Bearer <token>" and overrides
@@ -98,6 +106,10 @@ class HttpDownloader {
   static bool postForm(const std::string& url, const std::string& formBody, std::string& outResponse,
                        int* statusOut = nullptr);
 
+  // Worker-safe POST with an atomic cancellation token. Requires an IPv4-literal URL.
+  static bool postForm(const std::string& url, const std::string& formBody, std::string& outResponse,
+                       const std::atomic<bool>& cancelToken, int* statusOut = nullptr);
+
   /**
    * Download a file to the SD card with optional credentials. `headers` are
    * added to the request (e.g. a Bearer Authorization), alongside any Basic
@@ -112,6 +124,12 @@ class HttpDownloader {
                                       const std::string& username = "", const std::string& password = "",
                                       const std::vector<Header>& headers = {}, bool downgradeRedirectsToHttp = false);
 
+  // Worker-safe staged download. Requires an IPv4-literal URL and rejects redirects.
+  static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
+                                      const std::atomic<bool>& cancelToken, ProgressCallback progress = nullptr,
+                                      const std::string& username = "", const std::string& password = "",
+                                      const std::vector<Header>& headers = {});
+
   /**
    * POST a body (e.g. an LCP license to the fulfillment service) and stream
    * the response to the SD card, staged through "<dest>.part" like
@@ -121,4 +139,9 @@ class HttpDownloader {
   static DownloadError postToFile(const std::string& url, const std::string& body, const std::string& contentType,
                                   const std::string& destPath, ProgressCallback progress = nullptr,
                                   const bool* cancelFlag = nullptr);
+
+  // Worker-safe staged POST. Requires an IPv4-literal URL.
+  static DownloadError postToFile(const std::string& url, const std::string& body, const std::string& contentType,
+                                  const std::string& destPath, const std::atomic<bool>& cancelToken,
+                                  ProgressCallback progress = nullptr);
 };
