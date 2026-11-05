@@ -4,8 +4,6 @@
 #include <Logging.h>
 #include <WiFi.h>
 
-#include <algorithm>
-
 #include "WifiCredentialStore.h"
 #include "network/HttpDownloader.h"
 
@@ -14,7 +12,6 @@ constexpr uint32_t LOCAL_HTTP_TIMEOUT_MS = 5000;
 constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 10000;
 constexpr uint32_t WORKER_STACK_BYTES = 8192;
 constexpr UBaseType_t WORKER_PRIORITY = 1;
-constexpr size_t MAX_RESPONSE_BYTES = 2048;
 }  // namespace
 
 AiScreensaverService aiScreensaverService;
@@ -148,7 +145,6 @@ void AiScreensaverService::workerTrampoline(void* context) {
 }
 
 void AiScreensaverService::workerMain() {
-  std::string responseBody;
   int httpStatus = 0;
 
   HttpDownloader::FetchOptions options;
@@ -156,14 +152,8 @@ void AiScreensaverService::workerMain() {
   options.timeoutMs = LOCAL_HTTP_TIMEOUT_MS;
   options.cancelFlag = &cancelRequested_;
 
-  const bool success = HttpDownloader::fetchUrl(
-      requestUrl_,
-      [&responseBody](const uint8_t* data, size_t length) {
-        const size_t remaining = MAX_RESPONSE_BYTES - std::min(responseBody.size(), MAX_RESPONSE_BYTES);
-        responseBody.append(reinterpret_cast<const char*>(data), std::min(length, remaining));
-        return true;
-      },
-      options);
+  const bool success =
+      HttpDownloader::fetchUrl(requestUrl_, [](const uint8_t*, size_t) { return true; }, options);
 
   const bool cancelled = cancelRequested_.load(std::memory_order_acquire) && !success;
   {
@@ -172,7 +162,6 @@ void AiScreensaverService::workerMain() {
     result_.cancelled = cancelled;
     result_.httpStatus = httpStatus;
     result_.message = cancelled ? "GET cancelled" : success ? "GET complete" : "GET failed";
-    result_.responseBody = std::move(responseBody);
   }
 
   const UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(nullptr);
