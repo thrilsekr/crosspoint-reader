@@ -145,18 +145,17 @@ void LocalGetTestActivity::render(RenderLock&&) {
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 60,
                             stageLine("GET /test.bmp", bmpAttempted, bmpSucceeded, bmpHttpStatus).c_str());
 
-  const std::string fileLine = !bmpAttempted ? "BMP file: NOT TESTED"
-                              : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
+  const std::string fileLine =
+      !bmpAttempted ? "BMP file: NOT TESTED" : (bmpSucceeded ? "BMP file: SAVED" : "BMP file: NOT SAVED");
   UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 90, fileLine.c_str());
   if (state == State::REQUESTING) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, centerY + 120, statusMessage.c_str());
   }
 
   if (state == State::RESULT) {
-    const auto labels = (wifiCancelled || bmpAttempted)
-                            ? mappedInput.mapLabels("Back", "Done", "", "")
-                        : postAttempted ? mappedInput.mapLabels("Back", "Download BMP", "", "")
-                                        : mappedInput.mapLabels("Back", "POST test", "", "");
+    const auto labels = (wifiCancelled || bmpAttempted) ? mappedInput.mapLabels("Back", "Done", "", "")
+                        : postAttempted                 ? mappedInput.mapLabels("Back", "Download BMP", "", "")
+                                                        : mappedInput.mapLabels("Back", "POST test", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
   renderer.displayBuffer();

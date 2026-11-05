@@ -108,8 +108,7 @@ void AiScreensaverService::loop() {
     return;
   }
 
-  if (state_ != State::RUNNING || !workerTask_ ||
-      !workerFinished_.load(std::memory_order_acquire)) {
+  if (state_ != State::RUNNING || !workerTask_ || !workerFinished_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -131,8 +130,8 @@ void AiScreensaverService::loop() {
 
 bool AiScreensaverService::startWorker() {
   workerFinished_.store(false, std::memory_order_release);
-  const BaseType_t created = xTaskCreate(&AiScreensaverService::workerTrampoline, "AiHttpGet",
-                                         WORKER_STACK_BYTES, this, WORKER_PRIORITY, &workerTask_);
+  const BaseType_t created = xTaskCreate(&AiScreensaverService::workerTrampoline, "AiHttpGet", WORKER_STACK_BYTES, this,
+                                         WORKER_PRIORITY, &workerTask_);
   if (created != pdPASS) {
     workerTask_ = nullptr;
     return false;
@@ -152,8 +151,7 @@ void AiScreensaverService::workerMain() {
   options.timeoutMs = LOCAL_HTTP_TIMEOUT_MS;
   options.cancelFlag = &cancelRequested_;
 
-  const bool success =
-      HttpDownloader::fetchUrl(requestUrl_, [](const uint8_t*, size_t) { return true; }, options);
+  const bool success = HttpDownloader::fetchUrl(requestUrl_, [](const uint8_t*, size_t) { return true; }, options);
 
   const bool cancelled = cancelRequested_.load(std::memory_order_acquire) && !success;
   {
@@ -165,8 +163,8 @@ void AiScreensaverService::workerMain() {
   }
 
   const UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(nullptr);
-  LOG_DBG("AI-WORKER", "GET finished: success=%d cancelled=%d status=%d stack high-water=%u",
-          success ? 1 : 0, cancelled ? 1 : 0, httpStatus, static_cast<unsigned>(stackHighWater));
+  LOG_DBG("AI-WORKER", "GET finished: success=%d cancelled=%d status=%d stack high-water=%u", success ? 1 : 0,
+          cancelled ? 1 : 0, httpStatus, static_cast<unsigned>(stackHighWater));
 
   workerFinished_.store(true, std::memory_order_release);
   // The main task reaps this suspended task only after confirming it is no
