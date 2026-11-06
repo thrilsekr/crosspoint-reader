@@ -2,9 +2,12 @@
 
 #include <GfxRenderer.h>
 #include <WiFi.h>
+#include <Bitmap.h>
+#include <HalStorage.h>
 
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/reader/AiScreensaverStorage.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/AiScreensaverService.h"
@@ -95,17 +98,47 @@ void LocalGetTestActivity::performBmpDownload() {
   }
   requestUpdate(true);
 
-  // Fixed local diagnostic endpoint. The file is deliberately kept separate
-  // from /sleep.bmp so this test cannot change the active screensaver.
+  // Keep the incoming file separate from the active image until its BMP
+  // headers parse successfully. The global /sleep.bmp override is untouched.
   constexpr char BMP_URL[] = "http://192.168.1.177:8765/test.bmp";
-  constexpr char DEST_PATH[] = "/x4-download-test.bmp";
-  const auto result = HttpDownloader::downloadToFile(BMP_URL, DEST_PATH);
-  const int httpStatus = HttpDownloader::lastStatus();
-  {
+  const std::string imageDirectory = aiScreensaverDirectoryForCachePath(bookCachePath);
+  bool saved = false;
+  if (!imageDirectory.empty() && Storage.ensureDirectoryExists(imageDirectory.c_str())) {
+    const std::string incomingPath = imageDirectory + "/incoming.bmp";
+    const std::string currentPath = imageDirectory + "/current.bmp";
+    const std::string previousPath = imageDirectory + "/previous.bmp";
+    const auto result = HttpDownloader::downloadToFile(BMP_URL, incomingPath);
+    const int httpStatus = HttpDownloader::lastStatus();
+    bool validBmp = false;
+    if (result == HttpDownloader::OK) {
+      HalFile incomingFile;
+      if (Storage.openFileForRead("X4BMP", incomingPath, incomingFile)) {
+        Bitmap bitmap(incomingFile);
+        validBmp = incomingFile.fileSize() >= 54 && bitmap.parseHeaders() == BmpReaderError::Ok;
+      }
+    }
+
+    if (validBmp) {
+      Storage.remove(previousPath.c_str());
+      const bool hadCurrent = Storage.exists(currentPath.c_str());
+      const bool backedUp = !hadCurrent || Storage.rename(currentPath.c_str(), previousPath.c_str());
+      if (backedUp) {
+        saved = Storage.rename(incomingPath.c_str(), currentPath.c_str());
+        if (!saved && hadCurrent) Storage.rename(previousPath.c_str(), currentPath.c_str());
+      }
+    }
+    {
+      RenderLock lock(*this);
+      bmpSucceeded = saved;
+      bmpHttpStatus = httpStatus;
+      statusMessage = saved ? "BMP saved for this book" : "BMP download/validation failed";
+      state = State::RESULT;
+    }
+  } else {
     RenderLock lock(*this);
-    bmpSucceeded = result == HttpDownloader::OK;
-    bmpHttpStatus = httpStatus;
-    statusMessage = bmpSucceeded ? "BMP download complete" : "BMP download failed";
+    bmpSucceeded = false;
+    bmpHttpStatus = HttpDownloader::lastStatus();
+    statusMessage = "Could not create book image folder";
     state = State::RESULT;
   }
   requestUpdate(true);

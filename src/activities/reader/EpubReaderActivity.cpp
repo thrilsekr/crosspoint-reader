@@ -40,6 +40,7 @@
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "LocalGetTestActivity.h"
+#include "AiScreensaverStorage.h"
 #include "MappedInputManager.h"
 #include "ProgressMapper.h"
 #include "QrDisplayActivity.h"
@@ -200,6 +201,16 @@ void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string&
     cacheMoved = Storage.rename(oldCachePath.c_str(), newCachePath.c_str());
     if (!cacheMoved) {
       LOG_ERR("ERS", "Failed to rename cache dir %s -> %s (non-fatal)", oldCachePath.c_str(), newCachePath.c_str());
+    }
+  }
+
+  if (cacheMoved) {
+    const std::string oldAiDirectory = aiScreensaverDirectoryForCachePath(oldCachePath);
+    const std::string newAiDirectory = aiScreensaverDirectoryForCachePath(newCachePath);
+    if (!oldAiDirectory.empty() && !newAiDirectory.empty() && Storage.exists(oldAiDirectory.c_str()) &&
+        !Storage.rename(oldAiDirectory.c_str(), newAiDirectory.c_str())) {
+      LOG_ERR("ERS", "Failed to move AI screensaver directory %s -> %s", oldAiDirectory.c_str(),
+              newAiDirectory.c_str());
     }
   }
 
@@ -1305,7 +1316,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::LOCAL_GET_TEST: {
-      startActivityForResult(std::make_unique<LocalGetTestActivity>(renderer, mappedInput),
+      startActivityForResult(std::make_unique<LocalGetTestActivity>(renderer, mappedInput, epub ? epub->getCachePath() : std::string{}),
                              [this](const ActivityResult&) { requestUpdate(); });
       break;
     }

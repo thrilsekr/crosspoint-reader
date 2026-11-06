@@ -26,6 +26,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "activities/reader/ReaderUtils.h"
+#include "activities/reader/AiScreensaverStorage.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
@@ -1074,6 +1075,7 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   const bool originalThresholds = useOriginalCoverThresholds(renderer);
   std::string coverBmpPath;
+  std::string aiScreensaverDirectory;
   bool cropped = SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP;
 
   // Check if the current book is XTC, TXT, or EPUB
@@ -1098,6 +1100,22 @@ void SleepActivity::renderCoverSleepScreen() const {
     if (!lastEpub.load(true, true)) {
       LOG_ERR("SLP", "Failed to load last book");
       return (this->*renderNoCoverSleepScreen)();
+    }
+
+    aiScreensaverDirectory = aiScreensaverDirectoryForCachePath(lastEpub.getCachePath());
+    if (!aiScreensaverDirectory.empty()) {
+      HalFile aiFile;
+      const std::string aiPath = aiScreensaverDirectory + "/current.bmp";
+      if (Storage.openFileForRead("SLP", aiPath, aiFile)) {
+        Bitmap aiBitmap(aiFile);
+        if (aiBitmap.parseHeaders() == BmpReaderError::Ok) {
+          LOG_DBG("SLP", "Rendering per-book AI screensaver: %s", aiPath.c_str());
+          if (withOverlay) overlayCover = &aiBitmap;
+          renderBitmapSleepScreen(aiBitmap);
+          overlayCover = nullptr;
+          return;
+        }
+      }
     }
 
     if (!lastEpub.generateCoverBmp(cropped, originalThresholds)) {

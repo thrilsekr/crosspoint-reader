@@ -233,3 +233,44 @@ For each future test, record:
 - `std::atomic` is available at configured `gnu++2a` language level; no target compile test performed.
 - `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Together with the non-thread-safe `HttpDownloader` contract, this reinforces single-flight HTTP and explicit Wi-Fi ownership.
 - Result: Worker architecture remains a viable direction, but bounded sleep cancellation is not yet proven. Need choose between SDK transport changes for bounded/cancellable DNS/TCP or a constrained endpoint/connection policy. No source code changed, no build triggered, no device test performed.
+
+
+## Per-book image storage implementation (2026-11-05)
+
+- Added `AiScreensaverStorage.h` to map the existing EPUB cache directory basename to the persistent `/.crosspoint/ai-screensaver/` namespace.
+- Updated `SleepActivity::renderCoverSleepScreen()` to parse and display the active book's `current.bmp` before falling back to the normal cover.
+- Updated the X4 local GET diagnostic to download into the active book's `incoming.bmp`, validate with `Bitmap::parseHeaders()`, and promote to `current.bmp` with `previous.bmp` rollback.
+- Updated finished-book move handling to rename the persistent AI directory alongside the existing EPUB cache directory.
+- **Build:** pending manual `X4 local GET diagnostic build`; no build result claimed.
+- **Device:** pending original X4 validation; no device result claimed.
+
+
+## 2026-11-05 — Worker lifecycle/cancellation contract investigation
+
+- Source verified: pinned SDK `5e94fe7480f019c89fbf691aef87523eb1b46704` calls `hostResolves()` before both HTTP and HTTPS connection setup. Platform pin `55.03.311` maps to Arduino-ESP32 3.3.11; its `NetworkManager::hostByName()` checks `IPAddress::fromString()` first and returns immediately for valid IP literals. Hostnames still use synchronous DNS without a caller abort/timeout API.
+- Source verified: TCP connection timeout currently inherits the 60-second HTTP timeout. TLS handshake and response reads have cooperative abort polling; TCP connect itself does not.
+- Decision recorded: worker URLs are IPv4 literals only; add a separate 2-second TCP connect timeout while retaining the 60-second response/handshake timeout. Cross-task cancellation uses an atomic token; worker shutdown is cooperative and tasks are reaped only after cleanup.
+- Repository worker guidance reconciled in commits `7974116`, `b6af84d`, `a1ce6f0`. No firmware source or SDK pin changed. No build or device test performed.
+
+
+## 2026-11-05 — Worker network foundation implementation (build pending)
+
+- Added repository-owned pinned-SDK patch script `scripts/patch_sdk_worker_connect_timeout.py`. It asserts exact SDK SHA `5e94fe7480f019c89fbf691aef87523eb1b46704`; SDK source is patched only in the Actions workspace, leaving the submodule pin untouched.
+- Patch adds a separate 2,000 ms TCP connect timeout for both `SecureClient` (TLS) and `SecureHttpClient` (plain HTTP), then restores the 60,000 ms socket I/O timeout after successful TCP connection. Existing SDK timeout behavior remains unchanged when no connect timeout is set.
+- Patch adds `FetchOptions::followRedirects` (default true); worker GET sets false to prevent redirecting an IPv4-literal request to a hostname and re-entering DNS.
+- `HttpDownloader` adds atomic-token overloads for streaming GET, form POST, staged GET-to-file, and staged POST-to-file. Worker overloads require IPv4-literal URLs, reject redirects, use 2-second connect timeout, and retain 60-second response timeout. Existing bool-pointer APIs remain unchanged.
+- Workflow updated only to py-compile and apply the SDK patch before the existing X4 build. Trigger remains manual `workflow_dispatch`.
+- **Verification status:** GitHub source edits committed; patch script and C++ changes have not yet run in CI. No build artifact or device test exists yet. Next required action is manually dispatching the X4 Actions workflow, then inspect its patch/build logs.
+
+
+## 2026-11-05 — Worker network foundation build — PASS (not device-tested)
+
+- Source commit: `25c6ccad1f3e0f82d271bd8243361467f5983841`.
+- Workflow run #33: `42132139366`; manual `workflow_dispatch`; completed successfully.
+- Exact CrossPoint 2.0.0 source and SDK pin checks passed. SDK patch script py_compile and application passed against pinned SDK `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+- PlatformIO X4 `default` environment compiled and linked successfully; `HttpDownloader.cpp` compiled. Firmware binary generated successfully.
+- Artifact: `crosspoint-2.0.0-x4-local-get-test`, artifact ID `13464236915`, 3,648,605-byte ZIP; SHA-256 of uploaded ZIP: `5fdf976bfd639224ffa1a5640c830540aa1120d3151e1b59e20af9a79cec3212`.
+- Build memory report: RAM 20.4%; Flash 85.2%.
+- **Result: BUILD PASS.** Confirms source/API integration and pinned-SDK patch compile. Does not prove runtime cancellation latency or device sleep behavior.
+- **Device: NOT TESTED.** No firmware installation requested or performed.
+- **Next:** implement the activity-owned lifecycle-aware worker using the now-built atomic HTTP APIs and bounded IPv4 TCP-connect path. Validate its lifecycle and stop/reap behavior before device testing.

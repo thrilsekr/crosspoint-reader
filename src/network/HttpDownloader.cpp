@@ -1,10 +1,12 @@
 #include "HttpDownloader.h"
 
 #include <Arduino.h>
+#include <IPAddress.h>
 #include <Logging.h>
 #include <ResumableFetch.h>
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <string>
 
@@ -17,12 +19,31 @@ namespace {
 // (>15s) and chunked catalogs stall mid-body, so 15s killed them. 60s gives
 // slow servers room.
 constexpr int HTTP_TIMEOUT_MS = 60000;
+// Only worker-safe overloads use this short TCP setup budget. Existing callers
+// retain the historical 60-second connect behavior.
+constexpr int WORKER_CONNECT_TIMEOUT_MS = 2000;
 
 constexpr int MAX_REDIRECTS = 5;
 
 // postForm response cap: token responses are small JSON; a misbehaving server
 // must not balloon the heap.
 constexpr size_t MAX_RESPONSE_BYTES = 4096;
+
+using AbortCallback = freeink::SecureHttpClient::AbortCallback;
+
+bool isIpv4LiteralUrl(const std::string& url) {
+  const size_t schemeEnd = url.find("://");
+  if (schemeEnd == std::string::npos) return false;
+  const size_t hostStart = schemeEnd + 3;
+  const size_t hostEnd = url.find_first_of("/?#", hostStart);
+  std::string authority = url.substr(hostStart, hostEnd == std::string::npos ? std::string::npos
+                                                                            : hostEnd - hostStart);
+  if (authority.empty() || authority.find('@') != std::string::npos || authority.front() == '[') return false;
+  const size_t portSep = authority.rfind(':');
+  const std::string host = portSep == std::string::npos ? authority : authority.substr(0, portSep);
+  IPAddress address;
+  return address.fromString(host.c_str());
+}
 
 void applyCommonClientSetup(freeink::SecureHttpClient& http) {
   http.setTimeout(HTTP_TIMEOUT_MS);
@@ -45,17 +66,20 @@ bool g_lastRedirected = false;
 HttpDownloader::DownloadError runGetSecure(const std::string& url, const std::string& username,
                                            const std::string& password,
                                            const std::vector<HttpDownloader::Header>& headers,
-                                           const freeink::FetchSink& sink, const bool* cancelFlag = nullptr,
-                                           size_t* bytesOut = nullptr, const bool downgradeRedirectsToHttp = false) {
+                                           const freeink::FetchSink& sink, const AbortCallback& shouldAbort = nullptr,
+                                           size_t* bytesOut = nullptr, const bool downgradeRedirectsToHttp = false,
+                                           const bool boundedWorkerConnect = false) {
   WifiPowerSaveGuard psGuard;
   freeink::FetchOptions options;
   options.redirectToHttp = downgradeRedirectsToHttp;
+  options.followRedirects = !boundedWorkerConnect;
   bool answeredBySameOrigin = true;
   const freeink::FetchResult result = freeink::fetchResumable(
       url, options,
       [&](freeink::SecureHttpClient& http, const bool sameOrigin) {
         answeredBySameOrigin = sameOrigin;
         applyCommonClientSetup(http);
+        if (boundedWorkerConnect) http.setConnectTimeout(WORKER_CONNECT_TIMEOUT_MS);
         // Credentials and caller headers stay with the starting origin; a
         // redirect elsewhere (or to plain http) gets neither.
         if (sameOrigin) {
@@ -65,7 +89,7 @@ HttpDownloader::DownloadError runGetSecure(const std::string& url, const std::st
         LOG_DBG("HTTP", "wolfSSL GET: %s (heap %u, max block %u)", url.c_str(), (unsigned)ESP.getFreeHeap(),
                 (unsigned)ESP.getMaxAllocHeap());
       },
-      sink, [cancelFlag] { return cancelFlag && *cancelFlag; });
+      sink, shouldAbort);
   if (bytesOut) *bytesOut = result.bytes;
   // FetchResult::status is -1 when no response arrived (bad URL, DNS, connect, TLS).
   g_lastStatus = result.status < 0 ? 0 : result.status;
@@ -94,6 +118,53 @@ int HttpDownloader::lastStatus() { return g_lastStatus; }
 
 bool HttpDownloader::lastAnswerRedirected() { return g_lastRedirected; }
 
+HttpDownloader::DownloadError HttpDownloader::downloadToFile(
+    const std::string& url, const std::string& destPath, const std::atomic<bool>& cancelToken,
+    ProgressCallback progress, const std::string& username, const std::string& password,
+    const std::vector<Header>& headers) {
+  if (!isIpv4LiteralUrl(url)) {
+    LOG_ERR("HTTP", "worker download requires an IPv4-literal URL");
+    g_lastStatus = 0;
+    return HTTP_ERROR;
+  }
+  if (cancelToken.load(std::memory_order_acquire)) return ABORTED;
+  LOG_DBG("HTTP", "Worker download: %s -> %s", url.c_str(), destPath.c_str());
+  const std::string partPath = destPath + ".part";
+  Storage.remove(partPath.c_str());
+  HalFile file;
+  if (!Storage.openFileForWrite("HTTP", partPath.c_str(), file)) return FILE_ERROR;
+
+  freeink::FetchSink sink;
+  sink.write = [&file](const uint8_t* data, size_t len) { return file.write(data, len) == len; };
+  sink.rewind = [&file, &partPath] {
+    file.close();
+    return Storage.openFileForWrite("HTTP", partPath.c_str(), file);
+  };
+  sink.progress = progress;
+  const AbortCallback shouldAbort = [&cancelToken] {
+    return cancelToken.load(std::memory_order_acquire);
+  };
+  size_t downloaded = 0;
+  const DownloadError result =
+      runGetSecure(url, username, password, headers, sink, shouldAbort, &downloaded, false, true);
+  if (file.isOpen()) file.close();
+  if (result != OK) {
+    Storage.remove(partPath.c_str());
+    return result;
+  }
+  if (downloaded == 0) {
+    Storage.remove(partPath.c_str());
+    return HTTP_ERROR;
+  }
+  if (!Storage.replaceFile(partPath.c_str(), destPath.c_str())) {
+    Storage.remove(partPath.c_str());
+    return FILE_ERROR;
+  }
+  return OK;
+}
+
+
+
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
                               const std::string& password, const std::vector<Header>& headers) {
   return fetchUrl(
@@ -107,6 +178,29 @@ bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData
   freeink::FetchSink sink;
   sink.write = onData;
   return runGetSecure(url, username, password, headers, sink) == OK;
+}
+
+bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData,
+                              const std::atomic<bool>& cancelToken, const std::string& username,
+                              const std::string& password, const std::vector<Header>& headers) {
+  if (!isIpv4LiteralUrl(url)) {
+    LOG_ERR("HTTP", "worker request requires an IPv4-literal URL");
+    g_lastStatus = 0;
+    g_lastRedirected = false;
+    return false;
+  }
+  if (cancelToken.load(std::memory_order_acquire)) {
+    g_lastStatus = 0;
+    g_lastRedirected = false;
+    return false;
+  }
+  LOG_DBG("HTTP", "Worker GET: %s", url.c_str());
+  freeink::FetchSink sink;
+  sink.write = onData;
+  const AbortCallback shouldAbort = [&cancelToken] {
+    return cancelToken.load(std::memory_order_acquire);
+  };
+  return runGetSecure(url, username, password, headers, sink, shouldAbort, nullptr, false, true) == OK;
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData, const FetchOptions& options) {
@@ -197,6 +291,45 @@ bool HttpDownloader::postForm(const std::string& url, const std::string& formBod
                                         return true;
                                       });
   if (statusOut) *statusOut = status > 0 ? status : 0;
+  return status >= 200 && status < 300;
+}
+
+bool HttpDownloader::postForm(const std::string& url, const std::string& formBody,
+                              std::string& outResponse, const std::atomic<bool>& cancelToken, int* statusOut) {
+  if (!isIpv4LiteralUrl(url)) {
+    LOG_ERR("HTTP", "worker request requires an IPv4-literal URL");
+    g_lastStatus = 0;
+    if (statusOut) *statusOut = 0;
+    return false;
+  }
+  if (cancelToken.load(std::memory_order_acquire)) {
+    g_lastStatus = 0;
+    if (statusOut) *statusOut = 0;
+    return false;
+  }
+  WifiPowerSaveGuard psGuard;
+  outResponse.clear();
+  freeink::SecureHttpClient http;
+  if (!http.begin(url)) {
+    g_lastStatus = 0;
+    if (statusOut) *statusOut = 0;
+    return false;
+  }
+  applyCommonClientSetup(http);
+  http.setConnectTimeout(WORKER_CONNECT_TIMEOUT_MS);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  const AbortCallback shouldAbort = [&cancelToken] {
+    return cancelToken.load(std::memory_order_acquire);
+  };
+  const int status = http.sendRequest("POST", reinterpret_cast<const uint8_t*>(formBody.data()), formBody.size(),
+                                      [&outResponse](const uint8_t* data, size_t len) {
+                                        const size_t room =
+                                            MAX_RESPONSE_BYTES - std::min(outResponse.size(), MAX_RESPONSE_BYTES);
+                                        outResponse.append(reinterpret_cast<const char*>(data), std::min(len, room));
+                                        return true;
+                                      }, shouldAbort);
+  g_lastStatus = status > 0 ? status : 0;
+  if (statusOut) *statusOut = g_lastStatus;
   return status >= 200 && status < 300;
 }
 
@@ -298,7 +431,8 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   size_t downloaded = 0;
   const DownloadError result =
-      runGetSecure(url, username, password, headers, sink, cancelFlag, &downloaded, downgradeRedirectsToHttp);
+      runGetSecure(url, username, password, headers, sink, [cancelFlag] { return cancelFlag && *cancelFlag; },
+                   &downloaded, downgradeRedirectsToHttp);
   // Close before any remove() on the same path; DESTRUCTOR_CLOSES_FILE would
   // otherwise close only after the remove. A failed rewind leaves no open handle.
   if (file.isOpen()) file.close();
@@ -320,3 +454,68 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   LOG_DBG("HTTP", "Downloaded %zu bytes", downloaded);
   return OK;
 }
+
+HttpDownloader::DownloadError HttpDownloader::postToFile(
+    const std::string& url, const std::string& body, const std::string& contentType, const std::string& destPath,
+    const std::atomic<bool>& cancelToken, ProgressCallback progress) {
+  if (!isIpv4LiteralUrl(url)) {
+    LOG_ERR("HTTP", "worker POST requires an IPv4-literal URL");
+    g_lastStatus = 0;
+    return HTTP_ERROR;
+  }
+  if (cancelToken.load(std::memory_order_acquire)) return ABORTED;
+  WifiPowerSaveGuard psGuard;
+  const std::string partPath = destPath + ".part";
+  Storage.remove(partPath.c_str());
+  HalFile file;
+  if (!Storage.openFileForWrite("HTTP", partPath.c_str(), file)) return FILE_ERROR;
+
+  freeink::SecureHttpClient http;
+  if (!http.begin(url)) {
+    if (file.isOpen()) file.close();
+    Storage.remove(partPath.c_str());
+    g_lastStatus = 0;
+    return HTTP_ERROR;
+  }
+  applyCommonClientSetup(http);
+  http.setConnectTimeout(WORKER_CONNECT_TIMEOUT_MS);
+  http.addHeader("Content-Type", contentType);
+  size_t downloaded = 0;
+  bool writeFailed = false;
+  const AbortCallback shouldAbort = [&cancelToken] {
+    return cancelToken.load(std::memory_order_acquire);
+  };
+  const int status = http.sendRequest(
+      "POST", reinterpret_cast<const uint8_t*>(body.data()), body.size(),
+      [&](const uint8_t* data, size_t len) {
+        if (http.getStatus() < 200 || http.getStatus() >= 300) return true;
+        if (file.write(data, len) != len) {
+          writeFailed = true;
+          return false;
+        }
+        downloaded += len;
+        if (progress && http.hasContentLength()) progress(downloaded, http.getContentLength());
+        return true;
+      }, shouldAbort);
+  if (file.isOpen()) file.close();
+  g_lastStatus = status > 0 ? status : 0;
+  if (http.aborted()) {
+    Storage.remove(partPath.c_str());
+    return ABORTED;
+  }
+  if (writeFailed) {
+    Storage.remove(partPath.c_str());
+    return FILE_ERROR;
+  }
+  if (status < 200 || status >= 300 || downloaded == 0 ||
+      (http.hasContentLength() && downloaded != http.getContentLength())) {
+    Storage.remove(partPath.c_str());
+    return HTTP_ERROR;
+  }
+  if (!Storage.replaceFile(partPath.c_str(), destPath.c_str())) {
+    Storage.remove(partPath.c_str());
+    return FILE_ERROR;
+  }
+  return OK;
+}
+
