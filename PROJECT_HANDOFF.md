@@ -1,6 +1,6 @@
 # Xteink X4 AI Cover Art Project Handoff
 
-Last updated: 2026-11-05
+Last updated: 2026-11-06
 
 ## Mission and constraints
 
@@ -38,8 +38,10 @@ Do not repeat these tests. The current per-book storage uses the existing EPUB c
 ## Reconciliation status
 
 - PR #3 is open/draft and GitHub now reports it mergeable. Source branch is ahead of target by 59 commits and behind by 0.
-- The reconciled merge commit has not yet been built. Run the manual X4 workflow on the current `feat/ai-worker-lifecycle` head before merging PR #3 into the target.
-- Existing user-reported device passes remain valid for their tested commits; do not repeat them unless the reconciled build identifies a regression.
+- The reconciled source branch head `11c8c2d37f2520c9ab76cf158c03e5bf87d112ac` was built successfully by manual X4 workflow [run 42170462803](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42170462803) on 2026-11-06.
+- Job `Build CrossPoint 2.0.0 X4 baseline` passed all steps, including exact source/SDK pin verification, pinned-SDK worker-connect patch, PlatformIO setup, X4 firmware build, and artifact upload.
+- Artifact `crosspoint-2.0.0-x4-local-get-test` (ID `13481870449`) contains `firmware.bin` (5,570,576 bytes; SHA-256 `4a22938bf157720ad2c2677881206eeb6887ce2253fe074adb2eb6519c6fec10`). Artifact ZIP SHA-256: `bfbf30a9bfcc794df417051d98a3225e4e32a6f64749ad7d19f3eb3ea76bf849`.
+- **BUILD PASS only.** No new device test has been performed on this reconciled commit. Do not sideload until the user elects to validate it; prior device passes remain valid for their tested commits.
 
 ## Current milestone: Stage 1, direct AI provider contract
 
@@ -64,4 +66,4 @@ No bridge/proxy is justified yet. Prefer direct, minimal provider communication 
 
 ## Next action
 
-Complete a source-verified design for TLS trust + hostname verification and bounded hostname connection setup using the pinned SDK. In parallel, confirm the exact AI Horde request/status/result schema and account-key privacy behavior. Present the implementation plan before changing firmware code. No user device action is needed yet.
+PR #3 remains open/draft and must not be merged until review is complete. The reconciled branch now has a successful X4 build. Next, continue Stage 1: source-verify TLS CA trust and hostname verification plus bounded hostname DNS/TCP connection setup using the pinned SDK; confirm AI Horde request/status/result schema and account-key privacy behavior. Present the implementation plan before changing firmware code. Do not send API keys or page text until TLS verification is secure.
