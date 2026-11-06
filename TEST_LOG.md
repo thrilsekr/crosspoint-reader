@@ -1,3 +1,67 @@
+## 2026-11-06 — Reconciled worker branch X4 firmware build — BUILD PASS; DEVICE NOT TESTED
+
+- Branch: `feat/ai-worker-lifecycle`.
+- Exact source commit: `11c8c2d37f2520c9ab76cf158c03e5bf87d112ac`.
+- Manual X4 workflow: [run 42170462803](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42170462803).
+- Job `Build CrossPoint 2.0.0 X4 baseline`: **success**. All reported steps passed, including pinned source/SDK verification, bounded worker-connect SDK patch application, PlatformIO setup, X4 firmware build, and artifact upload.
+- Artifact: `crosspoint-2.0.0-x4-local-get-test`, ID `13481870449`, ZIP size 3,634,496 bytes; ZIP SHA-256 `bfbf30a9bfcc794df417051d98a3225e4e32a6f64749ad7d19f3eb3ea76bf849`.
+- Inspected artifact contents: one `firmware.bin`, 5,570,576 bytes. Binary SHA-256: `4a22938bf157720ad2c2677881206eeb6887ce2253fe074adb2eb6519c6fec10`.
+- **Result: BUILD PASS.** Confirms the reconciled worker branch compiles for the original X4 with the pinned CrossPoint 2.0.0 source/SDK workflow.
+- **Device: NOT TESTED.** User has not reported sideloading or runtime validation. Build success does not establish device behavior.
+- Generic CI run `42142588181` had failures in the generic X4 build, cppcheck, and clang-format jobs, while unit tests passed. This is a separate workflow from this successful manual X4 baseline run and remains a separate CI issue to inspect; it does not change the observed result of this X4 workflow.
+- Next: proceed with Stage 1 TLS trust/hostname verification and bounded hostname connection design. No repeat of completed worker/per-book device tests is warranted absent a regression.
+
+## 2026-11-05 — Reconcile X4 integration and worker branches — MERGE PUSHED; BUILD PENDING
+
+- Pushed merge commit `9c81c626e537cc957b6697b84a429e773341ce56` to `feat/ai-worker-lifecycle`.
+- Parents: worker branch `c87f195973a2a5a6feb06970c83f9289d4d387b2` and integration branch `f8a87112849ec7606ba47dc14763fc871f4f3a13`.
+- Combined the worker lifecycle/service with the integration branch's SDK connect-timeout patch, atomic HTTP APIs, per-book image storage, and reader sleep rendering.
+- Resolved overlapping C++ changes using a three-way merge; combined the diagnostic includes for storage validation and the worker service.
+- Updated `PROJECT_HANDOFF.md`, `DECISIONS.md`, and `AGENTS.md`. The repository-specific integration target now names the X4 feature branch rather than `develop`.
+- PR #3 remains open/draft. GitHub reports `mergeable=true`; source is 59 commits ahead and 0 behind the target.
+- **No build or device test has run on the reconciliation commit.** Next: run the manual X4-only workflow against the current worker branch head, inspect all jobs and artifact, then review the PR. Do not repeat previously passed device tests unless this build exposes a regression.
+
+## 2026-11-05 — Per-book image storage, isolation, persistence, and sleep rendering — DEVICE PASS (user-reported)
+
+- Source commit: `39f9a2491e035e273eebae60d258e7e481443b25` on `feat/x4-reader-screensaver-transition`.
+- X4-only GitHub Actions run: [42098749919](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42098749919); job `127495649366`; result: success.
+- Artifact ID: `13449687530`; artifact name: `crosspoint-2.0.0-x4-local-get-test`.
+- User tested the Book A/B/C sequence and reported: “This all appears to work.”
+- User-reported PASS outcomes: image is stored/promoted for the correct book; that book's image is used for reader-originated sleep; another book does not display the first book's image; returning to the first book retains its image; a book without a generated image uses its normal EPUB cover; system-menu screensaver behavior remains unchanged.
+- **Result: DEVICE PASS** for per-book image identity/isolation, persistence, sleep lookup/rendering, and normal-cover fallback.
+- Scope limit: no confirmation yet of a live generation request from captured page context, backend job polling, or the complete five-minute generation workflow. Those remain outstanding.
+- Do not repeat this Book A/B/C test or the worker GET/POST/BMP transfer diagnostics unless a later code change affects them.
+
+## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — DEVICE PASS (user-reported)
+
+- Firmware: X4-only build from commit `46cb346c4204da55b04ecd2140f51f91564d3b8c`, workflow run `42085257638`, artifact `13443680344`.
+- Binary SHA-256: `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
+- User reports all X4 tests passed:
+  - Reader-originated sleep with `Cover+Custom` displays the downloaded `/x4-download-test.bmp`.
+  - System-menu sleep retains the existing custom screensaver.
+  - Missing-test-image fallback behavior returns to the original EPUB cover.
+- **Result: DEVICE PASS** for the downloaded-BMP sleep-cover integration and preservation of the system-menu screensaver path.
+- Scope limit: this is a static diagnostic BMP fixture. AI image generation, final per-book storage/lookup, and generated-image lifecycle are not implemented.
+- No further device test is required for this milestone.
+
+# Xteink X4 AI Cover Art — Test and Build Log
+
+## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — BUILD PASS; DEVICE TEST PENDING
+
+- Source branch: `feat/ai-worker-lifecycle`, PR #3 targeting `feat/x4-reader-screensaver-transition`.
+- Build run: `42085257638`; original X4 only; unit tests, clang-format, cppcheck, and firmware build passed.
+- Artifact ID: `13443680344`; firmware binary size: 5,567,904 bytes.
+- SHA-256: `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
+- RAM: 66,680 / 327,680 bytes (20.3%). Flash: 5,553,375 / 6,553,600 bytes (84.7%).
+- Implementation: reader-originated `COVER_CUSTOM` sleep prefers `/x4-download-test.bmp`; missing, invalid, or unrenderable file falls back to the original book cover. System-menu custom screensaver path is unchanged.
+- No X4 device test of this display integration yet. User's next test is to sideload this build, sleep from an EPUB with Cover+Custom selected, then sleep from a system menu to verify both paths.
+
+## 2026-11-05 — Worker lifecycle and local BMP transfer — DEVICE PASS (user-reported)
+
+- Firmware tested: `x4-ai-worker-lifecycle-firmware.bin`, workflow run `42060939878`, artifact ID `13430903087`.
+- User-reported results: GET Pass; POST Pass; GET BMP Pass; BMP Saved.
+- Confirms the worker GET lifecycle and serialized POST/BMP download/save diagnostic. It does not validate the Cover+Custom display path.
+
 ## 2026-11-04 — X4 reader trigger + context preview — DEVICE PASS
 
 - Firmware source commit: `3360e939950fbf5d35022a085ec213628b7ec287`; built by manual X4 workflow run `41773580611`, job `126388673607`.
@@ -59,7 +123,7 @@ Pinned source: CrossPoint 2.0.0 branch `ai-screensaver/2.0.0-baseline`; SDK subm
 - **Unresolved:** task creation/priority/stack/cleanup policy; safe cancellation through HTTP APIs and plain-HTTP stages; bounded stop/wait; Wi-Fi ownership.
 - No source files changed; no build; no device test. Documentation records only.
 
-# Xteink AI Screensaver — Test and Build Log
+
 
 Newest entries first. Record actual results only; label hypotheses explicitly.
 

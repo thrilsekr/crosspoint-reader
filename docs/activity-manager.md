@@ -266,7 +266,25 @@ There are two tasks relevant to the activity system:
 
 Both tasks run at priority 1. Since the ESP32-C3 is single-core, they alternate execution: the main task runs `loop()`, then at the end of the loop iteration, notifies the render task if an update was requested. The render task wakes, acquires the mutex, calls `render()`, releases the mutex, and blocks again.
 
-Do not use `xTaskCreate` inside activities. If you have a use case that seems to require a background task, open a discussion to propose a lifecycle-aware `Worker` abstraction first.
+Do not create or own a FreeRTOS worker task inside an Activity. Background
+work belongs to an application-lifetime service that owns copied request data,
+the worker task, cancellation state, and synchronized results. The worker must
+never retain an Activity pointer, render, or acquire RenderLock.
+
+A worker-backed activity needs a nonblocking pre-exit readiness hook. The
+ActivityManager checks it before taking RenderLock for Pop/Replace/
+ReplaceForSleep. Replace also checks stacked activities it will destroy. If
+work is still cancelling or cleaning up, retain the pending transition and
+return to the main loop so the activity remains alive and responsive.
+`onExit()` must not block, join, or forcibly delete an active worker.
+
+`prepareForSleep()` runs under RenderLock and may only request cancellation.
+The main sleep path waits for worker completion and service-owned Wi-Fi cleanup
+after releasing RenderLock and before sleep/plugin-event network delivery.
+The worker publishes completion after HTTP/Wi-Fi RAII has unwound, then
+suspends; the application service reaps it only after confirming it is
+suspended. Keep HTTP single-flight. Service-owned Wi-Fi remains connected for
+sequential requests until activity exit or sleep, when the main task releases it.
 
 ### The Render Mutex and RenderLock
 
@@ -472,15 +490,16 @@ void MyActivity::doNetworkStuff() {
 ```
 
 
-## Activity-owned worker lifecycle
+## Application-owned worker services
 
-For an activity that needs responsive background I/O (rather than a synchronous operation in `loop()`):
+New asynchronous network work must not be owned by an Activity. Use an application-lifetime service to own copied request inputs, the FreeRTOS task handle, cancellation/result state, and any Wi-Fi connection it creates.
 
-- Encapsulate task creation in a small activity-owned worker wrapper. Do not call raw `xTaskCreate` from an activity.
-- Give the worker copied/owned inputs and independently owned result/progress state. It must not retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
-- Use synchronized cooperative cancellation (`std::atomic<bool>` for a cross-task stop token). Never share an ordinary `bool` or `volatile bool` unsynchronized.
-- Serialize HTTP operations. The activity owns Wi-Fi lifecycle; the worker must not change Wi-Fi mode or disconnect.
-- `prepareForSleep()` requests cancellation and waits for completion. This hook runs under `RenderLock`, so the worker must not need that lock. Do not allow sleep-event delivery or Wi-Fi shutdown while the worker still owns network resources.
-- `onExit()` repeats stop/reap idempotently before activity destruction. A task may be deleted/reaped only after it reports completion and all network/file/RAII cleanup has finished. Never use `vTaskDelete()` to interrupt an active operation.
-- Keep the worker's request path cancellable and bounded before adding it. For the current X4 screensaver worker, use IPv4-literal endpoints only (avoids the pinned platform's synchronous DNS resolver) and a separate short TCP connection timeout; preserve the longer response timeout. Do not silently treat a hostname lookup or the existing 60-second connect timeout as prompt cancellation.
-- Size the stack from the actual call chain and verify the high-water mark on device; the shared render-task stack size is not a template.
+- Advance service lifecycle and perform Wi-Fi mode changes, credential loading, connection setup, and cleanup from the Arduino/main task.
+- Worker code must not retain an Activity pointer, render, acquire `RenderLock`, or access SD storage. Keep shared HTTP clients single-flight.
+- ActivityManager's `prepareToExit()` gate runs outside `RenderLock`; it may request cancellation and defer destruction until the service reports idle. Do not block or join in `onExit()`.
+- `prepareForSleep()` is called under `RenderLock` and must only request cancellation. The main sleep path waits for worker cleanup outside the lock and before sleep-event network delivery or Wi-Fi shutdown.
+- The worker must unwind HTTP and all RAII resources before publishing completion and suspending. The main task reaps only after confirming the task is suspended; never forcibly delete active network work.
+- Keep a service-owned Wi-Fi connection available for sequential follow-on requests, then release it on activity exit or sleep. Never disconnect a station connection the service did not establish.
+- Validate task stack high-water and heap margin on target hardware; a configured stack size is not evidence of adequate margin.
+
+The Xteink AI Screensaver implementation in PR #3 is the first application of this pattern. Its 8 KiB worker stack and 5-second per-operation timeout are provisional; see the project handoff and test log for validation status.

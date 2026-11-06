@@ -1,148 +1,62 @@
-# Xteink AI Screensaver — Decision Record
+# Xteink X4 AI Cover Art — Decision Record
 
-Last updated: 2026-11-02
+Last updated: 2026-11-05
 
-This file records decisions that should not be reopened without new evidence or an explicit user request.
+Durable decisions and constraints. Reopen only with new evidence or explicit user request.
 
 ## Project boundaries
+- Target: original Xteink X4, CrossPoint 2.0.0, exact FreeInk SDK pin `5e94fe7480f019c89fbf691aef87523eb1b46704`.
+- No beta, RC, development firmware, or firmware reinstall outside an explicitly planned test.
+- Work only in personal fork `thrilsekr/crosspoint-reader`; do not touch upstream.
+- Firmware delivery is SD-card sideloading. No USB serial.
+- Prefer minimal data exposure. Never ask for private LAN details or credentials.
+- Existing screensaver files need not be protected during diagnostics; avoid unrelated destructive changes.
+- Assistant owns project records. Do not repeat completed tests without a concrete regression reason.
 
-- Target is the original Xteink X4 running CrossPoint 2.0.0.
-- Keep the exact 2.0.0 firmware and SDK baseline. No beta, RC, dev firmware, or reinstall without an explicit planned test.
-- Work only in the user's personal fork: `thrilsekr/crosspoint-reader`.
-- Use SD-card sideloading for firmware.
-- No USB serial access.
-- Prefer local-only networking and minimal data exposure. Never ask for private LAN addresses or credentials.
-- The user delegates project management and engineering execution. Continue without a “proceed” prompt unless user input, device action, or approval is required.
-- Existing screensaver files do not need protection during diagnostics. This supersedes the earlier instruction to preserve them. Avoid unrelated destructive changes.
+## Reader trigger and context
+- Configurable short-power action is persisted as `AI_SCREENSAVER=10`; values 0–9 remain unchanged. Long press retains OEM power-down behavior.
+- Original X4 is no-touch. Use the direct short-power release path in `EpubReaderActivity::loop()`, with the existing simultaneous-Down guard. Do not rely on touch-board-only mappings.
+- Capture page text with the pinned SDK `Section::getTextFromSectionFile()` and book title/author while the reader is alive. It extracts the current page's text blocks, joins words with spaces, and does not preserve full layout or non-text elements.
+- Copy context into independently owned data before `ActivityManager::replaceActivity()`; let reader `onExit()` and destruction run before network work. Never retain reader/Section pointers.
+- Do not use QR in the final flow, event payloads, or `reader.session`. Automatic inactivity sleep is out of scope.
 
-## Reader integration
+## Sleep rendering and per-book storage
+- This is an EPUB cover substitution through existing reader-originated `Cover+Custom`, not a new screensaver mode.
+- Reader-originated `COVER_CUSTOM` uses `renderCoverSleepScreen()`; system-menu sleep uses `renderCustomSleepScreen()`. Leave the latter and global `/sleep.bmp` path unchanged.
+- Use the generated image only for the matching book. Missing, invalid, or unrenderable image falls back to that book's original cover.
+- Per-book images live outside the disposable EPUB layout cache at `/.crosspoint/ai-screensaver/epub_<existing-cache-id>/`. Reuse the existing `Epub::getCachePath()` directory basename as identity.
+- `current.bmp` is active; `incoming.bmp` is untrusted input; `previous.bmp` supports rollback during promotion. Do not replace a valid current image until the incoming image is fully downloaded and validated.
+- Keep same-book previous image while waiting; never show another book's image. Cache clearing must not delete AI images. Current identity implementation covers reflowable books; XTC identity is out of scope until designed.
+- Generate portrait art, target 480×800. This is a generation target, not a validation requirement. BMP validation stays permissive: readable supported header and complete pixel data only; do not reject dimensions, orientation, or aspect ratio. Existing renderer zoom-to-fit is retained.
 
-- Trigger via configurable short power-button action, append persisted setting value `AI_SCREENSAVER=10` (values 0–9 are already occupied).
-- Original X4 is a no-touch profile. Its existing reader loop handles short power release directly via `mappedInput.wasReleased(Button::Power)`; use this path, with the existing simultaneous-Down guard. Do not rely on the touch-board-only `MappedInputManager` bookmark/sync/menu mapping.
-- Add the option to `SettingsList.h::shortPowerButtonOptions()`; leave long-press power-down unchanged.
-- Do not renumber existing `SHORT_PWRBTN` values.
-- Long press remains existing power-down behavior.
-- Capture current-page text from the reader's `Section` using `getTextFromSectionFile()` at trigger time. In the pinned SDK, it loads `currentPage` and extracts that page's text blocks, not the whole chapter. It joins words with spaces and does not preserve all original layout/spacing or non-text elements.
-- Do not use QR in the final flow; it was only a validation method.
-- Do not depend on plugin/event payloads for reader text.
-- Do not introduce `reader.session` unless user explicitly asks to revisit it.
-- Automatic inactivity sleep is out of scope.
+## Worker lifecycle (implemented and device-tested)
+- `AiScreensaverService` is application-lifetime and owned by main.
+- Main task owns service state and Wi-Fi lifecycle. Worker receives copied request data and an atomic cancellation token; it performs one HTTP operation and publishes a result.
+- Worker never retains Activity pointers, draws, accesses SD storage, or acquires `RenderLock`.
+- Worker uses an 8 KiB stack at priority 1. Main reaps only after the worker has returned to its suspended completion state.
+- Sleep preparation requests cancellation under `RenderLock`, then drains the service outside the lock before sleep-event delivery and radio shutdown.
+- Cancellation is cooperative. Diagnostic GET uses a 5-second socket timeout; saved-network association may take up to 45 seconds. These are not an end-to-end deadline. User accepted current delay.
+- HTTP is single-flight. Diagnostic POST and BMP download run sequentially on the main task after worker GET. Do not redesign the worker lifecycle for provider integration.
 
-## Reader-to-screensaver lifecycle
+## HTTP/network foundation
+- `HttpDownloader` is single-flight; never run concurrent requests.
+- Existing staged downloads write to `.part` and replace the destination only after complete success; failed partial files are removed.
+- Worker-safe atomic cancellation overloads exist for streaming GET, form POST, staged GET and staged POST. Legacy synchronous APIs remain source-compatible.
+- Build-time SDK patch is pinned to the exact submodule SHA and adds a 2,000 ms TCP connect budget for worker operations while restoring the 60,000 ms socket I/O timeout after connect. Worker-safe requests require IPv4 literals and reject redirects. Existing callers retain prior timeout behavior.
+- The X4 manual workflow syntax-checks/applies the SDK patch in the Actions workspace; do not change the SDK gitlink.
+- **Security gate:** before sending provider credentials, verify the merged code does not disable TLS verification and confirm CA trust plus hostname verification against the pinned SDK. Do not use `setInsecure()` for authenticated HTTPS.
+- Current diagnostic worker path was local IPv4 HTTP. Public hostnames, provider HTTPS, JSON API requests, and WebP are not yet implemented.
 
-- Capture the exact visible-page text and required book metadata while the reader is still alive.
-- Copy the captured data into an independently owned context; the screensaver must not retain pointers/references into the reader or its `Section`.
-- Replace the reader activity with the AI screensaver activity using `ActivityManager::replaceActivity()`; do not push the screensaver onto the activity stack and leave the reader underneath.
-- Let the normal reader `onExit()` and destruction path run before screensaver file/network work begins. This flushes reader session state and releases reader-owned EPUB/Section objects and caches.
-- The reader's normal bookmark/clipping SD writes are not evidence that arbitrary concurrent filesystem access is safe. Prefer the sequential ownership boundary above.
-- AI activity owns the copied context and screensaver workflow. Network worker never renders or manipulates the display.
-- On completion/failure, hand off to the existing main-loop deep-sleep orchestration. The AI activity must not duplicate hardware shutdown/deep-sleep steps.
-
-**Source-verified, not device-tested (2026-11-02):** `ActivityManager::replaceActivity()` defers replacement, exits/destroys the outgoing activity, clears the stack, and enters the replacement. `ReaderActivity::onExit()` flushes reader-session state and performs reader cleanup. `EpubReaderActivity` owns the EPUB and current Section through smart pointers. `Section::~Section()` performs its cleanup/suspend path. Exact lower-level EPUB file-handle closure and the concrete `ReadingContext` API remain unverified.
-
-## Architecture and rendering
-
-- AI activity owns display rendering.
-- Network code must not draw to the display.
-- Capture page text once and retain an owned copy.
-- Do not create an ad-hoc FreeRTOS task inside an activity. The pinned source contains conflicting worker guidance: `docs/activity-manager.md` says not to call `xTaskCreate` in activities and to propose a lifecycle-aware Worker abstraction; `.agents/rules/ui-activities.md` says workers should be stopped/deleted in `onExit()` with `vTaskDelete()`. No reusable general-purpose Worker implementation was found in the inspected firmware/SDK tree. Resolve this conflict and define an explicit lifecycle/cancellation contract before implementation.
-- Use existing activity stack and render-lock mechanisms.
-- Network polling and transition to deep sleep must be validated.
-
-## Worker lifecycle contract (SETTLED; implementation pending)
-
-- Implement a small activity-owned `ActivityWorker` wrapper. Activity code must not call raw `xTaskCreate` / `xTaskCreatePinnedToCore`.
-- Worker input and result/progress state are independently owned; the task must never retain an Activity pointer, call Activity methods, render, or acquire `RenderLock`.
-- One HTTP operation at a time. The AI activity owns Wi-Fi setup/teardown; the worker does not connect, disconnect, or change Wi-Fi mode.
-- Cross-task cancellation uses `std::atomic<bool>` (release store by owner, acquire load by HTTP callbacks); an ordinary shared `bool` or `volatile bool` is not acceptable.
-- All worker HTTP requests in this milestone use an IPv4-literal URL. The pinned Arduino-ESP32 3.3.11 `NetworkManager::hostByName()` checks `IPAddress::fromString()` first and returns before DNS for a valid literal. Hostnames remain unsupported in the worker until a cancellable/bounded resolver is designed.
-- Add a distinct 2,000 ms TCP connection timeout while retaining the existing 60,000 ms HTTP response/socket-operation timeout. Apply the connection timeout to both plain HTTP and HTTPS transport; HTTPS handshake/read timeout remains 60 seconds and handshake cancellation continues to poll the abort callback.
-- Extend the downloader cancellation surface to GET, POST, and file download using the atomic token. Cancellation must be checked at request entry, response/header/body reads, and every existing abort-capable SDK path. Preserve current synchronous APIs for existing callers.
-- `prepareForSleep()` requests cancellation and waits for worker completion while the hook holds `RenderLock`. The worker must never need that lock. Completion is published only after HTTP, file, and Wi-Fi guard cleanup has unwound.
-- `onExit()` performs the same idempotent stop-and-reap as a fallback for ordinary navigation. `vTaskDelete()` is permitted only after the worker has reported completion; it must never interrupt an active HTTP operation or C++ cleanup.
-- Worker startup failure, normal completion, cancellation, and task reaping have explicit states. If the worker cannot complete, sleep must not proceed to sleep-event delivery or Wi-Fi shutdown while the worker still owns the network.
-- Stack size is selected from the actual worker call chain and verified with stack high-water measurements; do not copy the render-task stack size.
-
-This resolves the conflicting repository guidance: cooperative cancellation and completion are mandatory; forced deletion of an active worker is forbidden.
-
-## Networking and worker cancellation
-
-- Caller establishes Wi-Fi; `HttpDownloader` does not connect.
-- Use existing `HttpDownloader` APIs rather than inventing another HTTP stack.
-- Do not run concurrent HTTP requests. `HttpDownloader` explicitly documents itself as not thread-safe and permits one fetch at a time.
-- Legacy `downloadToFile()` and `postToFile()` retain their `const bool*` overloads for existing single-task callers. Worker-safe overloads now accept `const std::atomic<bool>&` for streaming GET, form POST, staged file GET, and staged file POST. Do not share an ordinary `bool` unsynchronized between tasks.
-- Atomic GET/download overloads pass an acquire-load cancellation callback into the SDK's resumable fetch implementation. Atomic POST overloads pass the same callback into `SecureHttpClient::sendRequest()`. Legacy bool-pointer APIs remain source-compatible.
-- HTTP response/socket-operation timeout remains 60 seconds. Worker-safe overloads additionally use a 2-second TCP connection timeout; the SDK restores the 60-second socket I/O timeout immediately after TCP connect. Response loops poll the atomic abort callback between nonblocking reads. This is not a total request deadline.
-- Pinned SDK patch is repository-owned and applied at build time to exact submodule SHA `5e94fe7480f019c89fbf691aef87523eb1b46704`; the submodule pointer is not changed. The patch adds a separate connect timeout to `SecureClient` and `SecureHttpClient`, and an option to disable redirects in resumable GET. Worker-safe `HttpDownloader` overloads require an IPv4-literal URL and disable redirects, so they bypass the pinned platform's synchronous DNS path. The patch restores the 60-second socket timeout after the 2-second TCP connect. Build verification is still pending.
-- `ClockSyncActivity` and `FontDownloadActivity` perform synchronous HTTP operations from activity/main-loop logic after rendering a progress screen. This is existing behavior, not a suitable model for responsive AI screensaver network work.
-- `HalStorage` serializes SD operations with a recursive mutex and wraps `HalFile` read/write/close calls. The HAL source explicitly notes SdFat itself is not thread-safe. Background file access must use `Storage`/`HalFile`, not direct SdFat; do not share a `HalFile` instance concurrently.
-- `WifiPowerSaveGuard` changes global Wi-Fi power-save mode. Keep HTTP single-flight and ensure the worker has fully unwound before sleep-event delivery or Wi-Fi shutdown. `HalPowerManager::Lock` currently supports only one lock at a time.
-- `ActivityManager::prepareForSleep()` invokes activity hooks while holding `RenderLock` and is called before sleep plugin event delivery. Worker cancellation/completion must not need `RenderLock`, must finish before sleep-event network delivery, and must have a bounded wait.
-- `onExit()` is also a required stop-and-wait fallback for non-sleep activity transitions. Do not forcibly delete a task while its network call or C++ resource cleanup is active.
-- Worker lifecycle guidance is settled in `PROJECT_HANDOFF.md`: cooperative atomic cancellation, completion only after RAII cleanup, then reap; never delete an active task. Implementation of the worker wrapper remains out of scope for this network-foundation milestone.
-- Respect `downloadToFile()` staging behavior (`.part`, replace on success, remove partial on failure).
-- Keep service local-only where practical; no public exposure of the local receiver.
-
-## Image and storage
-
-- Generated screensaver imagery must be portrait-oriented (preferred device presentation). Landscape diagnostic fixtures are acceptable for transport/renderer tests only; they do not change the generation preference.
-- 800×400 is a target, not a hard validation rule.
-- BMP validation is permissive: validate readable header/format and complete pixel data, not dimensions/orientation/aspect ratio.
-- Renderer supports zoom-to-fit.
-- Archive outside `.sleep`.
-- Intended generated image state tracks book identity/path/hash and image ID/checksum/timestamp.
-- Do not archive/replace the current image until the incoming image has downloaded and validated.
-- For same book, retain the existing generated image while waiting; for another book, show that book's cover until a new image arrives.
-- Timeout target is five minutes; fallback should remain cover art, not an unrelated previous image.
-
-## Diagnostic workflow
-
-- Local Windows receiver uses port 8765.
-- Diagnostic routes are strict: GET `/test.bmp`, GET/POST `/event`; unknown routes return 404.
-- Receiver should log connection acceptance, request line, headers, body, response, and disconnect/timeout phase.
-- Q should stop the receiver.
-- Diagnostic image download must use `/x4-download-test.bmp`, not `/sleep.bmp`, unless a later test explicitly changes scope.
-- Cumulative device diagnostic screen must retain outcomes from GET, POST, and BMP stages.
-- Do not claim a transport failure means no TCP connection; HTTP 0 means no HTTP response was obtained.
+## Provider integration (proposed, not yet implemented)
+- AI Horde is the candidate direct provider. Confirm current request, status, result, cancellation and privacy semantics before implementation.
+- Candidate request is asynchronous: submit JSON, retain job ID, poll check endpoint no more than once per minute, retrieve result on completion, then download and convert image.
+- `shared:false` is not a guarantee that volunteer workers cannot see prompt content. Verify registered-key behavior and user privacy expectations before sending page text.
+- Keep provider credentials in SD-card configuration only. Never embed/log keys or page text.
+- AI Horde image sizes must be multiples of 64; 384×640 is a candidate 3:5 request size, scaled to 480×800 locally.
+- AI Horde output WebP is unsupported by the current JPEG/PNG/GIF decoder factory. Design memory-safe conversion before use.
+- No bridge/proxy unless direct connectivity is shown to be infeasible.
 
 ## Collaboration
-
-- Keep explanations short and actionable.
-- Avoid repeating established context or asking the user to repeat completed tests.
-- Ask only essential questions.
-- Treat confirmed behavior, hypotheses, and untested ideas separately.
-- Validate each milestone before moving on.
-
-
-## Record format / maintenance policy
-- These records are primarily an assistant-operational memory store, not user documentation.
-- Optimize for retrieval precision, compactness, explicit state, and low ambiguity rather than polished prose.
-- Prefer concise structured fields, stable labels, exact identifiers, dates, and explicit status tags: CONFIRMED / HYPOTHESIS / UNTESTED / BLOCKED / DONE.
-- Avoid repeating the same facts across files; handoff stores current state, decisions stores durable constraints, test log stores chronological evidence.
-- User is not expected to read or maintain these files. Assistant owns updates and may translate or summarize on request.
-
-
-## Worker design investigation correction (2026-11-02)
-
-- `std::atomic` is available at the configured `gnu++2a` language level (`platformio.ini`); target build/use remains untested. A FreeRTOS event/semaphore primitive is an alternative.
-- Neither HTTPS nor plain HTTP can currently promise immediate cancellation during DNS/TCP connection setup. For HTTPS, cancellation is checked before DNS and after TCP, and is polled during TLS handshake; plain HTTP has no abort callback in the connection branch. The `Network.hostByName()` interface has no caller-supplied timeout/abort parameter.
-- Any `ActivityWorker` must serialize HTTP and Wi-Fi power-save changes, never overlap main-task Wi-Fi disconnect/mode changes, and fully unwind request/file/Wi-Fi RAII state before reporting completion.
-- The Worker wrapper is a proposed reconciliation of conflicting repository guidance, not an approved implementation. No raw task creation or `vTaskDelete()` policy has been committed.
-
-
-## Per-book AI screensaver image storage
-
-- Store generated/test images outside the disposable EPUB layout cache at `/.crosspoint/ai-screensaver/epub_<existing-cache-id>/`.
-- Reuse the existing `Epub::getCachePath()` directory basename as book identity; do not invent a second hash or key.
-- `current.bmp` is the displayed image; `incoming.bmp` is the untrusted download; `previous.bmp` is the rollback copy during promotion.
-- Validate BMP parsing before promotion. Do not enforce fixed dimensions or orientation; the renderer handles zoom-to-fit and portrait is a generation preference, not a file acceptance rule.
-- Missing/invalid per-book image falls back to the normal generated book cover. Global `/sleep.bmp` precedence remains unchanged.
-- Move the per-book directory when the existing EPUB cache identity is moved. Cache clearing must not remove AI screensaver images.
-- Current implementation slice covers reflowable books; XTC-specific identity remains out of scope until separately designed.
-
-
-## Worker network foundation implementation (2026-11-05; build pending)
-
-- Added `scripts/patch_sdk_worker_connect_timeout.py`, which refuses any SDK SHA other than the exact pinned revision and patches the submodule only in the Actions build workspace. The patch adds a separate 2,000 ms TCP connection budget for `SecureClient` and `SecureHttpClient`, then restores the existing 60,000 ms socket I/O timeout after successful TCP connect. A resumable-fetch option disables redirects for worker GETs.
-- Added atomic-token overloads to `HttpDownloader` for streaming GET, form POST, staged file GET, and staged file POST. They use `memory_order_acquire`, require IPv4-literal URLs, reject redirects, and apply the 2,000 ms connect timeout. Legacy APIs and their behavior remain intact.
-- The X4 manual Actions workflow syntax-checks and applies the SDK patch before building. The SDK gitlink remains unchanged. Source/build verification and device tests are pending.
+- Keep changes incremental and reviewable. Verify APIs against exact CrossPoint 2.0.0 and pinned SDK.
+- Explain approach before implementation. Distinguish verified, implemented-unverified, proposed, and failed.
+- Update `PROJECT_HANDOFF.md`, `DECISIONS.md`, and `TEST_LOG.md` with meaningful work.

@@ -32,6 +32,8 @@ class Activity {
   virtual void onExit();
   // Last chance to queue activity-owned state before sleep events are drained.
   virtual void prepareForSleep() {}
+  // Nonblocking gate checked outside RenderLock before a pending exit destroys this activity.
+  virtual bool prepareToExit() { return true; }
   virtual void loop() {}
 
   virtual void render(RenderLock&&) {}

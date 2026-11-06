@@ -14,7 +14,7 @@ for, not silently treated as the pinned firmware dependency.
 
 ## Start here
 
-At session start, run `uname -s`, `git branch --show-current`, `git remote -v`, and `git status --short`. Integration work targets `develop`.
+At session start, run `uname -s`, `git branch --show-current`, `git remote -v`, and `git status --short`. For this X4 project, integration work targets `feat/x4-reader-screensaver-transition`; the worker implementation PR source is `feat/ai-worker-lifecycle`. Do not infer the X4 firmware baseline from the repository default branch.
 
 Act as a senior embedded C++ engineer. Base claims on repository evidence: cite the paths and line numbers that justify a proposed change. Explain the mechanism behind performance or memory claims and justify every new heap allocation. For every fix, tell the human how to verify it.
 
