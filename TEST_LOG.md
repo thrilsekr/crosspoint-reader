@@ -1,3 +1,16 @@
+## 2026-11-06 — Reconciled worker branch X4 firmware build — BUILD PASS; DEVICE NOT TESTED
+
+- Branch: `feat/ai-worker-lifecycle`.
+- Exact source commit: `11c8c2d37f2520c9ab76cf158c03e5bf87d112ac`.
+- Manual X4 workflow: [run 42170462803](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42170462803).
+- Job `Build CrossPoint 2.0.0 X4 baseline`: **success**. All reported steps passed, including pinned source/SDK verification, bounded worker-connect SDK patch application, PlatformIO setup, X4 firmware build, and artifact upload.
+- Artifact: `crosspoint-2.0.0-x4-local-get-test`, ID `13481870449`, ZIP size 3,634,496 bytes; ZIP SHA-256 `bfbf30a9bfcc794df417051d98a3225e4e32a6f64749ad7d19f3eb3ea76bf849`.
+- Inspected artifact contents: one `firmware.bin`, 5,570,576 bytes. Binary SHA-256: `4a22938bf157720ad2c2677881206eeb6887ce2253fe074adb2eb6519c6fec10`.
+- **Result: BUILD PASS.** Confirms the reconciled worker branch compiles for the original X4 with the pinned CrossPoint 2.0.0 source/SDK workflow.
+- **Device: NOT TESTED.** User has not reported sideloading or runtime validation. Build success does not establish device behavior.
+- Generic CI run `42142588181` had failures in the generic X4 build, cppcheck, and clang-format jobs, while unit tests passed. This is a separate workflow from this successful manual X4 baseline run and remains a separate CI issue to inspect; it does not change the observed result of this X4 workflow.
+- Next: proceed with Stage 1 TLS trust/hostname verification and bounded hostname connection design. No repeat of completed worker/per-book device tests is warranted absent a regression.
+
 ## 2026-11-05 — Reconcile X4 integration and worker branches — MERGE PUSHED; BUILD PENDING
 
 - Pushed merge commit `9c81c626e537cc957b6697b84a429e773341ce56` to `feat/ai-worker-lifecycle`.
