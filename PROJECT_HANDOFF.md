@@ -90,9 +90,26 @@ Cumulative diagnostic firmware from code commit `98811e06eb687e83fba58eef2de86a8
 - Firmware: workflow run `42085257638`, artifact `13443680344`, source commit `46cb346c4204da55b04ecd2140f51f91564d3b8c`; SHA-256 `8317a1ef2b3c9b0a9dd1e36c8b6bce9b8d57bda21a7f4bff5dd38d0f4f25a6d8`.
 - This closes the static downloaded-image display milestone. `/x4-download-test.bmp` remains a temporary root-level fixture, not the final storage design.
 
-## Next milestone
+### Completed milestone: per-book generated-image storage and lookup — DEVICE TEST PASS (2026-11-05; user-reported)
 
-Design and implement the final per-book image storage/lookup contract, then connect image generation and replace the diagnostic BMP path. Keep the current reader-originated `COVER_CUSTOM` behavior and system-menu screensaver path unchanged. Do not treat the diagnostic BMP as the final AI workflow.
+- Implementation/build source: `feat/x4-reader-screensaver-transition`, commit `39f9a2491e035e273eebae60d258e7e481443b25`.
+- X4-only workflow run: [42098749919](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42098749919), job `127495649366`, success. Artifact ID `13449687530`.
+- User tested the Book A/B/C sequence and reported: “This all appears to work.”
+- Confirmed user-reported behavior: downloaded image is promoted/stored for its book; reader-originated sleep renders that book's image; Book B does not show Book A's image; returning to Book A retains its image; a book without an image falls back to its normal cover; existing system-menu screensaver behavior remains intact.
+- This closes per-book identity/isolation, persistence, sleep lookup/rendering, and normal-cover fallback for the current storage implementation.
+- Scope limit: this is image delivery/storage/rendering validation, not a complete reading-context-to-AI-generation workflow.
+
+## Current milestone / next actions
+
+**Next: replace the diagnostic image source with the real generation workflow, reusing the already-tested worker and per-book storage.** Do not rebuild or retest the worker lifecycle, basic GET/POST/BMP transfer, or Book A/B/C storage behavior unless a later change regresses them.
+
+1. **Verify the existing backend contract and choose the one POC endpoint**: request fields (book title/author + captured page text), response/job identifier, status polling response, image download URL or payload, and error/timeout semantics. Keep credentials and provider secrets off the X4; prefer the local bridge.
+2. **Define the activity/service boundary**: the AI activity owns copied reading context, progress UI, five-minute overall deadline, and cancellation intent. The application-lifetime `AiScreensaverService` owns the worker task and serialized HTTP execution. Worker receives owned request data, never Activity pointers, and publishes a result. Keep HTTP calls single-flight.
+3. **Implement one end-to-end request path**: activity submits context; service performs generation-job submission; activity polls status once per minute (Wi-Fi off between checks); on completion, download the portrait BMP, validate it permissively, and promote it into that book's existing image slot only after full success.
+4. **Preserve tested fallback behavior**: same book keeps its previous valid image while waiting; a different book uses its own normal cover until generation succeeds; failure/timeout/invalid BMP leaves the existing per-book image untouched and uses normal-cover fallback where no valid image exists. System-menu screensaver remains unchanged.
+5. **Build X4-only and test one complete cycle**: trigger from an EPUB, verify context reaches the backend, verify polling and download, sleep to show the new image, switch books to verify isolation, then test cancellation/timeout fallback. Record exact workflow/artifact and device outcomes.
+
+No user action is needed yet. First work is backend-contract inspection against the repository and the existing local bridge; ask only if a backend decision cannot be established from project files.
 
 ## Confirmed CrossPoint 2.0.0 findings
 
