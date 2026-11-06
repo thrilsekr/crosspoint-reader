@@ -20,7 +20,7 @@ Generate reading-context-aware, portrait AI cover art for the original Xteink X4
 - Integration target branch HEAD before reconciliation: `f8a87112849ec7606ba47dc14763fc871f4a3a13`.
 - Worker PR #3 source before reconciliation: `c87f195973a2a5a6feb06970c83f9289d4d387b2`.
 - PR #3: https://github.com/thrilsekr/crosspoint-reader/pull/3. It remains a draft and targets `feat/x4-reader-screensaver-transition`.
-- The merge commit on `feat/ai-worker-lifecycle` contains the integration branch as its second parent. Check the live PR/branch head at the start of the next session; do not assume a branch SHA from this note remains current.
+- Reconciliation merge commit: `9c81c626e537cc957b6697b84a429e773341ce56` (parents: worker source `c87f195973a2a5a6feb06970c83f9289d4d387b2`, integration target `f8a87112849ec7606ba47dc14763fc871f4f3a13`). This commit was pushed to `feat/ai-worker-lifecycle`.
 
 ## Completed and verified milestones
 
@@ -34,6 +34,12 @@ Generate reading-context-aware, portrait AI cover art for the original Xteink X4
 Do not repeat these tests. The current per-book storage uses the existing EPUB cache identity and keeps generated images outside the disposable EPUB layout cache. See `DECISIONS.md`.
 
 **BUILD PASS:** workflow run 42132139366 at the exact baseline SHA above. Build success is not a new device-validation claim for later commits.
+
+## Reconciliation status
+
+- PR #3 is open/draft and GitHub now reports it mergeable. Source branch is ahead of target by 59 commits and behind by 0.
+- The reconciled merge commit has not yet been built. Run the manual X4 workflow on the current `feat/ai-worker-lifecycle` head before merging PR #3 into the target.
+- Existing user-reported device passes remain valid for their tested commits; do not repeat them unless the reconciled build identifies a regression.
 
 ## Current milestone: Stage 1, direct AI provider contract
 

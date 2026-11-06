@@ -1,3 +1,13 @@
+## 2026-11-05 — Reconcile X4 integration and worker branches — MERGE PUSHED; BUILD PENDING
+
+- Pushed merge commit `9c81c626e537cc957b6697b84a429e773341ce56` to `feat/ai-worker-lifecycle`.
+- Parents: worker branch `c87f195973a2a5a6feb06970c83f9289d4d387b2` and integration branch `f8a87112849ec7606ba47dc14763fc871f4f3a13`.
+- Combined the worker lifecycle/service with the integration branch's SDK connect-timeout patch, atomic HTTP APIs, per-book image storage, and reader sleep rendering.
+- Resolved overlapping C++ changes using a three-way merge; combined the diagnostic includes for storage validation and the worker service.
+- Updated `PROJECT_HANDOFF.md`, `DECISIONS.md`, and `AGENTS.md`. The repository-specific integration target now names the X4 feature branch rather than `develop`.
+- PR #3 remains open/draft. GitHub reports `mergeable=true`; source is 59 commits ahead and 0 behind the target.
+- **No build or device test has run on the reconciliation commit.** Next: run the manual X4-only workflow against the current worker branch head, inspect all jobs and artifact, then review the PR. Do not repeat previously passed device tests unless this build exposes a regression.
+
 ## 2026-11-05 — Per-book image storage, isolation, persistence, and sleep rendering — DEVICE PASS (user-reported)
 
 - Source commit: `39f9a2491e035e273eebae60d258e7e481443b25` on `feat/x4-reader-screensaver-transition`.
