@@ -1,3 +1,14 @@
+## 2026-11-05 — Per-book image storage, isolation, persistence, and sleep rendering — DEVICE PASS (user-reported)
+
+- Source commit: `39f9a2491e035e273eebae60d258e7e481443b25` on `feat/x4-reader-screensaver-transition`.
+- X4-only GitHub Actions run: [42098749919](https://github.com/thrilsekr/crosspoint-reader/actions/runs/42098749919); job `127495649366`; result: success.
+- Artifact ID: `13449687530`; artifact name: `crosspoint-2.0.0-x4-local-get-test`.
+- User tested the Book A/B/C sequence and reported: “This all appears to work.”
+- User-reported PASS outcomes: image is stored/promoted for the correct book; that book's image is used for reader-originated sleep; another book does not display the first book's image; returning to the first book retains its image; a book without a generated image uses its normal EPUB cover; system-menu screensaver behavior remains unchanged.
+- **Result: DEVICE PASS** for per-book image identity/isolation, persistence, sleep lookup/rendering, and normal-cover fallback.
+- Scope limit: no confirmation yet of a live generation request from captured page context, backend job polling, or the complete five-minute generation workflow. Those remain outstanding.
+- Do not repeat this Book A/B/C test or the worker GET/POST/BMP transfer diagnostics unless a later code change affects them.
+
 ## 2026-11-05 — Downloaded BMP as Cover+Custom reader cover — DEVICE PASS (user-reported)
 
 - Firmware: X4-only build from commit `46cb346c4204da55b04ecd2140f51f91564d3b8c`, workflow run `42085257638`, artifact `13443680344`.
